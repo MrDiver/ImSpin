@@ -1,0 +1,7 @@
+out/
+build/
+ray
+Session.vim
+compile_commands.json
+.cache/
+
