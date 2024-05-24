@@ -5,7 +5,7 @@
 #include <string>
 #include <utility>
 #define GLAD_GL_IMPLEMENTATION
-#include <gl.h>
+#include <GL/gl.h>
 #include <glm/glm.hpp>
 #include <vector>
 

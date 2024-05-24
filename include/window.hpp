@@ -3,8 +3,9 @@
 
 #define GLAD_GL_IMPLEMENTATION
 #define GLFW_INCLUDE_NONE
+#include <glad/gl.h>
+// GLAD BEFORE GLFW
 #include <GLFW/glfw3.h>
-#include <gl.h>
 
 class Window
 {

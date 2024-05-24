@@ -1,5 +1,6 @@
+#include <glad/gl.h>
+//
 #include "ezgl.hpp"
-#include <GL/gl.h>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

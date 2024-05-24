@@ -25,27 +25,33 @@ FetchContent_Declare(
   GIT_TAG 3.4)
 
 FetchContent_Declare(
+  glm
+  GIT_REPOSITORY https://github.com/g-truc/glm.git
+  GIT_TAG 1.0.1)
+
+FetchContent_Declare(
   glad
   GIT_REPOSITORY https://github.com/Dav1dde/glad.git
   GIT_TAG v2.0.6)
 
-# set(GLAD_PROFILE "core" CACHE STRING "OpenGL profile")
-set(GLAD_GENERATOR
-    "c"
-    CACHE STRING "Language to generate the binding for")
+if(NOT glad_POPULATED)
+    FetchContent_Populate(glad)
+    add_subdirectory("${glad_SOURCE_DIR}/cmake" glad_cmake)
+    glad_add_library(glad_gl REPRODUCIBLE API gl:compatibility=4.3)
+endif()
 
-FetchContent_MakeAvailable(imgui spdlog glfw glad)
+FetchContent_MakeAvailable(imgui spdlog glfw glm)
 
 if(INSTALL_DEPENDENCIES)
-  FetchContent_Declare(
+    FetchContent_Declare(
     spin
     GIT_REPOSITORY https://gitlab.com/ktuff/spin.git
     GIT_TAG 46b53e255bee03fdb5b241817408f389cffc6016)
-  FetchContent_Declare(
+    FetchContent_Declare(
     swarm
     GIT_REPOSITORY https://gitlab.com/ktuff/swarm.git
     GIT_TAG 95fb3442fb4ed67e7391e41c675c8aa19f3ad232)
-  FetchContent_MakeAvailable(spin swarm)
+    FetchContent_MakeAvailable(spin swarm)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -68,8 +74,11 @@ set(GLFW_BUILD_DOCS OFF)
 set(GLFW_INSTALL OFF)
 
 # ADD glad
-target_link_libraries(${PROJECT_NAME} gl)
-target_link_libraries(${PROJECT_NAME} glad)
+target_link_libraries(${PROJECT_NAME} PUBLIC GL)
+target_link_libraries(${PROJECT_NAME} PUBLIC glad_gl)
+
+# ADD glm
+target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 
 # LINK IMGUI
 set(IMGUI_BACKEND "glfw")
@@ -88,6 +97,6 @@ add_library(
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_API}.h")
 
 target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
-target_link_libraries(${PROJECT_NAME} imgui glfw spdlog)
+target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
 target_include_directories(${PROJECT_NAME} PRIVATE "external/imgui")

@@ -1,5 +1,4 @@
 #include "window.hpp"
-#include "GLFW/glfw3.h"
 #include <spdlog/spdlog.h>
 
 #include "backends/imgui_impl_glfw.h"
@@ -129,7 +128,7 @@ Window::Window(int32_t width, int32_t height, const char *name)
     glfwMakeContextCurrent(this->w);
 
     // Loading glad
-    gladLoadGL();
+    gladLoadGL((GLADloadfunc)glfwGetProcAddress);
 
     glfwSwapInterval(1);
     glEnable(GL_DEBUG_OUTPUT);
