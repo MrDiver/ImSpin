@@ -4,6 +4,9 @@
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
         pkgs.libGL
         pkgs.gcc
+        pkgs.gtk3
+        pkgs.wayland
+        pkgs.libxkbcommon
     ];
     buildInputs = with pkgs; [
         glfw
@@ -15,15 +18,15 @@
         xorg.libXrandr
     ];
     nativeBuildInputs = with pkgs.buildPackages; [
+        dbus
         clang
         byacc
         cacert
         cmake
+        cmakeCurses
         git
         libffi
-        libxkbcommon
         pkg-config
-        wayland
         wayland-scanner
         python3
         (python3.withPackages (python-pkgs: [

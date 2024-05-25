@@ -311,8 +311,8 @@ int main()
 
         ImGui::End();
         ImGui::PopStyleVar(2);
-        ImGui::ShowStyleEditor();
-        ImGui::ShowDemoWindow();
+        /* ImGui::ShowStyleEditor(); */
+        /* ImGui::ShowDemoWindow(); */
 
         window.endDrawing();
 
