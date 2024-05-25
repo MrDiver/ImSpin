@@ -3,7 +3,7 @@
     # nativeBuildInputs is usually what you want -- tools you need to run
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
         pkgs.libGL
-        pkgs.clang
+        pkgs.gcc
     ];
     buildInputs = with pkgs; [
         glfw
@@ -15,6 +15,7 @@
         xorg.libXrandr
     ];
     nativeBuildInputs = with pkgs.buildPackages; [
+        clang
         byacc
         cacert
         cmake

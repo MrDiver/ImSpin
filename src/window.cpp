@@ -135,7 +135,7 @@ Window::Window(int32_t width, int32_t height, const char *name)
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, nullptr);
 
-    glClearColor(0.5f, 0.2f, 0.2f, 0.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Creation of ImGui
     ImGui::CreateContext();
@@ -144,6 +144,8 @@ Window::Window(int32_t width, int32_t height, const char *name)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // IF using Docking Branch
+    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts | ImGuiConfigFlags_DpiEnableScaleViewports;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     io.Fonts->AddFontFromFileTTF("/usr/share/fonts/TTF/LilexNerdFont-Regular.ttf", 18);
 
     ImGui_ImplGlfw_InitForOpenGL(this->w, true);
