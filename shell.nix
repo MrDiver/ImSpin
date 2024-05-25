@@ -3,26 +3,26 @@
     # nativeBuildInputs is usually what you want -- tools you need to run
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
         pkgs.libGL
+        pkgs.clang
     ];
     buildInputs = with pkgs; [
         glfw
         glfw-wayland
         xorg.libX11
-        xorg.libXrandr
-        xorg.libXi
         xorg.libXcursor
+        xorg.libXi
         xorg.libXinerama
+        xorg.libXrandr
     ];
     nativeBuildInputs = with pkgs.buildPackages; [
-        git
         byacc
         cacert
-        gcc
         cmake
-        wayland
+        git
         libffi
         libxkbcommon
         pkg-config
+        wayland
         wayland-scanner
         python3
         (python3.withPackages (python-pkgs: [

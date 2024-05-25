@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 # CREATE EXECUTABLE
 
-project("imspin")
+project("imspin" C CXX)
 
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
@@ -29,6 +29,18 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/g-truc/glm.git
   GIT_TAG 1.0.1)
 
+
+set(NFD_PORTAL ON)
+FetchContent_Declare(
+  nfd
+  GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+  GIT_TAG v1.1.1)
+
+# FetchContent_Declare(
+#   imfile
+#   GIT_REPOSITORY https://github.com/aiekick/ImGuiFileDialog.git
+#   GIT_TAG v0.6.7)
+
 FetchContent_Declare(
   glad
   GIT_REPOSITORY https://github.com/Dav1dde/glad.git
@@ -40,7 +52,7 @@ if(NOT glad_POPULATED)
     glad_add_library(glad_gl REPRODUCIBLE API gl:compatibility=4.3)
 endif()
 
-FetchContent_MakeAvailable(imgui spdlog glfw glm)
+FetchContent_MakeAvailable(imgui spdlog glfw glm nfd)
 
 if(INSTALL_DEPENDENCIES)
     FetchContent_Declare(
@@ -55,7 +67,9 @@ if(INSTALL_DEPENDENCIES)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_C_STANDARD 20)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CONFIG EXECUTABLE
 set(SOURCE_FILES "src/main.cpp" "src/window.cpp" "src/ezgl.cpp")
@@ -97,6 +111,7 @@ add_library(
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_API}.h")
 
 target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
-target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog)
+# target_link_libraries(ImGuiFileDialog PUBLIC imgui)
+target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog nfd)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
 target_include_directories(${PROJECT_NAME} PRIVATE "external/imgui")
