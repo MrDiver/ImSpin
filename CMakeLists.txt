@@ -29,17 +29,14 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/g-truc/glm.git
   GIT_TAG 1.0.1)
 
-
 set(NFD_PORTAL ON)
 FetchContent_Declare(
   nfd
   GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
   GIT_TAG v1.1.1)
 
-# FetchContent_Declare(
-#   imfile
-#   GIT_REPOSITORY https://github.com/aiekick/ImGuiFileDialog.git
-#   GIT_TAG v0.6.7)
+# FetchContent_Declare( imfile GIT_REPOSITORY
+# https://github.com/aiekick/ImGuiFileDialog.git GIT_TAG v0.6.7)
 
 FetchContent_Declare(
   glad
@@ -72,9 +69,10 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CONFIG EXECUTABLE
-set(SOURCE_FILES "src/main.cpp" "src/window.cpp" "src/ezgl.cpp")
+file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
+file(GLOB_RECURSE HEADER_FILES "include/*.hpp")
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME}
                            PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")

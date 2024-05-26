@@ -16,6 +16,7 @@
 #endif
 #include "imgui.h"
 
+#include "editor.hpp"
 #include "ezgl.hpp"
 
 using namespace glm;
@@ -25,32 +26,12 @@ void error_callback(int32_t error, const char *description)
     spdlog::error(description);
 }
 
-#define SHORTCUT_OPEN (GLFW_KEY_O | GLFW_MOD_CONTROL) // Ctrl+O
-#define SHORTCUT_SAVE (GLFW_KEY_S | GLFW_MOD_CONTROL) // Ctrl+S
-#define SHORTCUT_EXIT (GLFW_KEY_F4 | GLFW_MOD_ALT)    // Alt+F4
-
-bool IsShortcutPressed(int shortcut)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    int key = shortcut & 0xFF;
-    int mods = shortcut & ~0xFF;
-    bool isPressed = io.KeysDown[key];
-
-    if (mods & GLFW_MOD_CONTROL)
-        isPressed &= io.KeyCtrl;
-    if (mods & GLFW_MOD_SHIFT)
-        isPressed &= io.KeyShift;
-    if (mods & GLFW_MOD_ALT)
-        isPressed &= io.KeyAlt;
-    if (mods & GLFW_MOD_SUPER)
-        isPressed &= io.KeySuper;
-
-    return isPressed;
-}
+#define SHORTCUT_OPEN (ImGuiKey_O | ImGuiMod_Ctrl)     // Ctrl+O
+#define SHORTCUT_SAVE (ImGuiKey_S | ImGuiMod_Ctrl)     // Ctrl+S
+#define SHORTCUT_EXIT (ImGuiKey_Escape | ImGuiMod_Alt) // Alt+F4
 
 void fileDialog(std::string &filepath, std::string &filecontent)
 {
-
     char *outPath;
     nfdfilteritem_t filterItem[2] = {
         {"Source code", "pml"},
@@ -70,19 +51,6 @@ void fileDialog(std::string &filepath, std::string &filecontent)
         buffer << file.rdbuf();
         filecontent = buffer.str();
     }
-}
-
-void RenderEditView(std::string filepath, std::string filecontent)
-{
-    ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_PassthruCentralNode;
-    ImGuiID dockSpaceId = ImGui::GetID("MyDockSpace");
-    ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), dockSpaceFlags);
-    ImGui::Begin("Dock1");
-    ImGui::End();
-    ImGui::Begin("Dock2");
-    ImGui::End();
-    ImGui::Begin("Dock3");
-    ImGui::End();
 }
 
 ImVec4 RGB(int r, int g, int b, int a)
@@ -151,13 +119,19 @@ void CatppuccinMocha()
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
 }
 
-void BasicStyling()
+void RebuildFonts(float size)
 {
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF("fonts/Roboto.ttf", 100);
-    io.Fonts->AddFontFromFileTTF("fonts/FiraCode.ttf", 100);
-    io.Fonts->AddFontFromFileTTF("fonts/SauceCodePro.ttf", 100);
+    io.Fonts->ClearFonts();
+    io.Fonts->Clear();
+    io.Fonts->AddFontFromFileTTF("fonts/Roboto.ttf", size);
+    io.Fonts->AddFontFromFileTTF("fonts/FiraCode.ttf", size);
+    io.Fonts->AddFontFromFileTTF("fonts/SauceCodePro.ttf", size);
     io.Fonts->Build();
+}
+
+void BasicStyling()
+{
 
     ImGuiStyle &style = ImGui::GetStyle();
     style.WindowPadding = ImVec2(20, 20);
@@ -179,6 +153,71 @@ void BasicStyling()
     style.PopupBorderSize = 1;
 }
 
+void RenderMenuBar(std::string &filepath, std::string &filecontent)
+{
+    if (ImGui::IsKeyChordPressed(SHORTCUT_OPEN))
+    {
+        fileDialog(filepath, filecontent);
+    }
+
+    if (ImGui::BeginMenuBar())
+    {
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Open", "Ctrl+O"))
+            {
+                fileDialog(filepath, filecontent);
+            }
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+}
+
+void SetupDockEditView()
+{
+    static bool editViewDockInitialized = false;
+    if (!editViewDockInitialized)
+    {
+        ImGuiID dockSpaceId = ImGui::GetID("EditViewDock");
+        ImGuiID dockUp, dockDown, dockLeft, dockRight;
+
+        ImGui::DockBuilderRemoveNode(dockSpaceId);
+        ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceId, ImGui::GetWindowSize());
+        dockDown = ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Down, 0.25, nullptr, &dockSpaceId);
+        dockRight = ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Right, 0.25, nullptr, &dockSpaceId);
+        ImGui::DockBuilderDockWindow("Editor", dockSpaceId);
+        ImGui::DockBuilderDockWindow("Automata View", dockRight);
+        ImGui::DockBuilderDockWindow("Log", dockDown);
+        ImGui::DockBuilderFinish(dockSpaceId);
+        editViewDockInitialized = true;
+    }
+}
+
+void RenderEditView(CodeEditor &editor)
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    SetupDockEditView();
+
+    ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_PassthruCentralNode;
+    ImGuiID dockSpaceId = ImGui::GetID("EditViewDock");
+    ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), dockSpaceFlags);
+
+    editor.Render();
+
+    // ImGui::SetNextWindowDockID(dockRight);
+    ImGui::Begin("Automata View");
+    ImGui::End();
+
+    // ImGui::SetNextWindowDockID(dockDown);
+    ImGui::Begin("Log");
+    ImGui::End();
+
+    ImGui::PopStyleVar(1);
+}
+
 int main()
 {
     // spdlog::set_level(spdlog::level::debug);
@@ -186,29 +225,32 @@ int main()
     glfwSetErrorCallback(error_callback);
 
     // Create a Window
-    Window window(1280, 720, "Ray Tracer");
+    Window window(1280, 720, "ImSpin");
 
     if (NFD_Init() != NFD_OKAY)
     {
         spdlog::error("Could not load NFD, you cannot open files");
     }
 
-    BasicStyling();
-    CatppuccinMocha();
-
     ImGuiIO &io = ImGui::GetIO();
+    ImGuiStyle &style = ImGui::GetStyle();
     // Scale Configuration
-    float global_scale = 0.35;
+    float global_scale = 0.1;
     io.FontGlobalScale = global_scale;
+    RebuildFonts(100);
 
     // Variables for custom styles
-    const char *styles[] = {"Dark", "Light"};
+    const char *styles[] = {"VioletDark", "Dark", "Light"};
     int current_style = 0;
 
     // Filepath variables
-    std::string filepath = "";
-    std::string filecontent = "";
+    std::string filepath;
+    std::string filecontent;
     bool window_open = true;
+    CodeEditor editor("Editor");
+
+    BasicStyling();
+    CatppuccinMocha();
 
     while (!window.shouldClose())
     {
@@ -234,35 +276,17 @@ int main()
                                         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                                         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
-        // ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::Begin("TabWindow", &window_open, window_flags);
-        /* ImGuiID dockspace_id = ImGui::GetID("MyDockSpace"); */
-        /* ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f)); */
+        ImGui::PopStyleVar(1);
 
-        if (IsShortcutPressed(SHORTCUT_OPEN))
-        {
-            fileDialog(filepath, filecontent);
-        }
-
-        if (ImGui::BeginMenuBar())
-        {
-            if (ImGui::BeginMenu("File"))
-            {
-                if (ImGui::MenuItem("Open", "Ctrl+O"))
-                {
-                    fileDialog(filepath, filecontent);
-                }
-                ImGui::EndMenu();
-            }
-
-            ImGui::EndMenuBar();
-        }
+        RenderMenuBar(filepath, filecontent);
 
         if (ImGui::BeginTabBar("Tabs"))
         {
             if (ImGui::BeginTabItem("Edit/View"))
             {
-                RenderEditView(filepath, filecontent);
+                RenderEditView(editor);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Simulate/Replay"))
@@ -289,16 +313,19 @@ int main()
             {
                 ImGui::ShowFontSelector("Font");
 
-                ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.1, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.04, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 
                 if (ImGui::Combo("Styles", &current_style, styles, IM_ARRAYSIZE(styles)))
                 {
                     switch (current_style)
                     {
                     case 0:
-                        ImGui::StyleColorsDark();
+                        CatppuccinMocha();
                         break;
                     case 1:
+                        ImGui::StyleColorsDark();
+                        break;
+                    case 2:
                         ImGui::StyleColorsLight();
                         break;
                     }
