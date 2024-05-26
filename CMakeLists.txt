@@ -55,12 +55,12 @@ if(INSTALL_DEPENDENCIES)
     endif()
     FetchContent_Declare(
     spin
-    GIT_REPOSITORY https://gitlab.com/ktuff/spin.git
-    GIT_TAG 46b53e255bee03fdb5b241817408f389cffc6016)
+    GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
+    GIT_TAG e9906664c14c3ddbeedc113cf6da4ff14a2e4bcb)
     FetchContent_Declare(
     swarm
-    GIT_REPOSITORY https://gitlab.com/ktuff/swarm.git
-    GIT_TAG 95fb3442fb4ed67e7391e41c675c8aa19f3ad232)
+    GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
+    GIT_TAG aaffcb2f85043eb9bde04d9ef456350770b47209)
     FetchContent_MakeAvailable(spin swarm)
 endif()
 
@@ -69,8 +69,10 @@ set(CMAKE_C_STANDARD 20)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_compile_options(-fsanitize=address)
-add_link_options(-fsanitize=address)
+if(NOT WIN32)
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+endif()
 
 # CONFIG EXECUTABLE
 file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
@@ -91,7 +93,22 @@ set(GLFW_INSTALL OFF)
 include_directories(${glfw_SOURCE_DIR}/include)
 
 # ADD glad
-target_link_libraries(${PROJECT_NAME} PUBLIC GL)
+if(WIN32)
+
+    find_package(OpenGL REQUIRED)
+
+    if (OPENGL_FOUND)
+        message("opengl found")
+        message("include dir: ${OPENGL_INCLUDE_DIR}")
+        message("link libraries: ${OPENGL_gl_LIBRARY}")
+    else (OPENGL_FOUND)
+        message("opengl not found")
+    endif()
+    target_link_libraries(${PROJECT_NAME} PUBLIC OpenGL::GL)
+else()
+    target_link_libraries(${PROJECT_NAME} PUBLIC GL)
+endif()
+
 target_link_libraries(${PROJECT_NAME} PUBLIC glad_gl)
 
 # ADD glm
@@ -118,3 +135,10 @@ target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog nfd)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
+
+file(GLOB FONT_FILES "fonts/*")
+foreach(font ${FONT_FILES})
+    cmake_path(GET font FILENAME fontname)
+    configure_file(fonts/${fontname} fonts/${fontname})
+
+endforeach()

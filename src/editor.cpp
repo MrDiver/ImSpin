@@ -133,7 +133,11 @@ void CodeEditor::RebuildTokens()
 {
     this->tokens.clear();
 
+    #ifdef _WIN32
+    std::regex tokenRegex(R"((\s+|\w+|\W))");
+    #else
     std::regex tokenRegex(R"((\s+|\w+|\W))", std::regex::multiline);
+    #endif
     for (std::string const &line : lines)
     {
         auto wordsBegin = std::sregex_iterator(line.begin(), line.end(), tokenRegex);

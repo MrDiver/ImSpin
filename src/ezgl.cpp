@@ -140,7 +140,11 @@ std::string readFile(std::string_view path, std::vector<std::string> &includes)
     }
 
     fs::path p(path);
+    #ifdef _WIN32
+    includes.push_back(p.filename().string());
+    #else
     includes.push_back(p.filename());
+    #endif
     p = p.remove_filename();
 
     std::string content;
