@@ -134,9 +134,53 @@ active proctype A() {
     ReplaceTabsWithSpaces(lines);
 }
 
+void CodeEditor::cursorUp(ImGuiKey key)
+{
+    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(key)) && cursorY > 0)
+    {
+        cursorY--;
+        resetBlink();
+    }
+}
+
+void CodeEditor::cursorDown(ImGuiKey key)
+{
+    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(key)) && cursorY < lines.size() - 1)
+    {
+        cursorY++;
+        resetBlink();
+    }
+}
+
+void CodeEditor::cursorLeft(ImGuiKey key)
+{
+    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(key)) && cursorX > 0)
+    {
+        moveCursorInBounds();
+        cursorX--;
+        resetBlink();
+    }
+}
+
+void CodeEditor::cursorRight(ImGuiKey key)
+{
+    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(key)) && cursorX < lines[cursorY].size())
+    {
+        cursorX++;
+        resetBlink();
+    }
+}
+
+void CodeEditor::moveCursorInBounds()
+{
+    if (cursorX >= lines[cursorY].size())
+    {
+        cursorX = lines[cursorY].size();
+    }
+}
+
 void CodeEditor::Render()
 {
-
     // Handle Text Input
     if (this->mode == Insert)
     {
@@ -149,18 +193,21 @@ void CodeEditor::Render()
         }
         else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Backspace)) && cursorX > 0)
         {
+            moveCursorInBounds();
             lines[cursorY].erase(cursorX - 1, 1);
             cursorX--;
             resetBlink();
         }
         else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Delete)) && cursorX < lines[cursorY].size())
         {
+            moveCursorInBounds();
             lines[cursorY].erase(cursorX, 1);
             resetBlink();
         }
         else if (ImGui::GetIO().InputQueueCharacters.Size > 0)
         {
             char c = ImGui::GetIO().InputQueueCharacters[0];
+            moveCursorInBounds();
             lines[cursorY].insert(cursorX, 1, c);
             cursorX++;
             ImGui::GetIO().InputQueueCharacters.clear();
@@ -169,57 +216,26 @@ void CodeEditor::Render()
     }
 
     // Handle Movement and Modes
-    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_UpArrow)) && cursorY > 0)
-    {
-        cursorY--;
-        resetBlink();
-    }
-    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_DownArrow)) && cursorY < lines.size() - 1)
-    {
-        cursorY++;
-        resetBlink();
-    }
-    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow)) && cursorX > 0)
-    {
-        cursorX--;
-        resetBlink();
-    }
-    if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_RightArrow)) && cursorX < lines[cursorY].size())
-    {
-        cursorX++;
-        resetBlink();
-    }
+    cursorUp(ImGuiKey_UpArrow);
+    cursorDown(ImGuiKey_DownArrow);
+    cursorLeft(ImGuiKey_LeftArrow);
+    cursorRight(ImGuiKey_RightArrow);
+
     if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
     {
         this->mode = Normal;
     }
+    if (this->mode == Normal && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_I)))
+    {
+        this->mode = Insert;
+    }
 
     if (this->mode == Normal)
     {
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_K)) && cursorY > 0)
-        {
-            cursorY--;
-            resetBlink();
-        }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_J)) && cursorY < lines.size() - 1)
-        {
-            cursorY++;
-            resetBlink();
-        }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_H)) && cursorX > 0)
-        {
-            cursorX--;
-            resetBlink();
-        }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_L)) && cursorX < lines[cursorY].size())
-        {
-            cursorX++;
-            resetBlink();
-        }
-        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_I)))
-        {
-            this->mode = Insert;
-        }
+        cursorUp(ImGuiKey_K);
+        cursorDown(ImGuiKey_J);
+        cursorLeft(ImGuiKey_H);
+        cursorRight(ImGuiKey_L);
     }
 
     ImGui::Begin("Editor");

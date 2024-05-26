@@ -31,4 +31,9 @@ class CodeEditor
 
     void RenderLine(uint32_t n, const std::string &line);
     void resetBlink();
+    void cursorDown(ImGuiKey key);
+    void cursorUp(ImGuiKey key);
+    void cursorLeft(ImGuiKey key);
+    void cursorRight(ImGuiKey key);
+    void moveCursorInBounds();
 };
