@@ -180,7 +180,7 @@ void SetupDockEditView()
     static bool editViewDockInitialized = false;
     if (!editViewDockInitialized)
     {
-        ImGuiID dockSpaceId = ImGui::GetID("EditViewDock");
+        static ImGuiID dockSpaceId = ImGui::GetID("EditViewDock");
         ImGuiID dockUp, dockDown, dockLeft, dockRight;
 
         ImGui::DockBuilderRemoveNode(dockSpaceId);
@@ -251,6 +251,7 @@ int main()
 
     BasicStyling();
     CatppuccinMocha();
+    io.FontGlobalScale = global_scale;
 
     while (!window.shouldClose())
     {
@@ -260,8 +261,6 @@ int main()
         // START RENDERING
 
         window.startDrawing();
-
-        io.FontGlobalScale = global_scale * ImGui::GetWindowDpiScale();
 
         // Start config for Main window
         const ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -313,7 +312,10 @@ int main()
             {
                 ImGui::ShowFontSelector("Font");
 
-                ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.04, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                if (ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.04, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+                {
+                    io.FontGlobalScale = global_scale;
+                }
 
                 if (ImGui::Combo("Styles", &current_style, styles, IM_ARRAYSIZE(styles)))
                 {

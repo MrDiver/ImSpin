@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
-# CREATE EXECUTABLE
-
-project("imspin" C CXX)
-
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
+
+project("imspin" C CXX)
 
 include(FetchContent)
 
@@ -52,6 +50,9 @@ endif()
 FetchContent_MakeAvailable(imgui spdlog glfw glm nfd)
 
 if(INSTALL_DEPENDENCIES)
+    if(WIN32)
+        add_compile_definitions(PC)
+    endif()
     FetchContent_Declare(
     spin
     GIT_REPOSITORY https://gitlab.com/ktuff/spin.git
@@ -68,6 +69,9 @@ set(CMAKE_C_STANDARD 20)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_compile_options(-fsanitize=address)
+add_link_options(-fsanitize=address)
+
 # CONFIG EXECUTABLE
 file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
 file(GLOB_RECURSE HEADER_FILES "include/*.hpp")
@@ -75,7 +79,7 @@ file(GLOB_RECURSE HEADER_FILES "include/*.hpp")
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME}
-                           PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+                           PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 # LINK GLFW
 set(GLFW_LIBRARY_TYPE "SHARED")
@@ -84,6 +88,7 @@ set(GLFW_BUILD_EXAMPLES ${GLFW_STANDALONE})
 set(GLFW_BUILD_TESTS ${GLFW_STANDALONE})
 set(GLFW_BUILD_DOCS OFF)
 set(GLFW_INSTALL OFF)
+include_directories(${glfw_SOURCE_DIR}/include)
 
 # ADD glad
 target_link_libraries(${PROJECT_NAME} PUBLIC GL)
@@ -112,4 +117,4 @@ target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
 # target_link_libraries(ImGuiFileDialog PUBLIC imgui)
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog nfd)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
-target_include_directories(${PROJECT_NAME} PRIVATE "external/imgui")
+target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")

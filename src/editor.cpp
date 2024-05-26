@@ -12,62 +12,6 @@ const std::unordered_set<std::string> promelaKeywords = {
 
 const std::unordered_set<char> promelaSymbols = {'{', '}', '(', ')', '[', ']', ';', ','};
 
-struct Token
-{
-    std::string text;
-    ImVec4 color;
-};
-
-std::vector<Token> TokenizePromela(const std::string &code)
-{
-    std::vector<Token> tokens;
-    std::regex tokenRegex(R"((//.*?$)|(\s+|\w+|\W))", std::regex::multiline);
-    auto wordsBegin = std::sregex_iterator(code.begin(), code.end(), tokenRegex);
-    auto wordsEnd = std::sregex_iterator();
-
-    for (auto it = wordsBegin; it != wordsEnd; ++it)
-    {
-        std::string word = it->str();
-        ImVec4 color = CATPPUCCIN_MOCHA_WHITE; // Default color
-
-        if (word.starts_with("//"))
-        {
-            color = SYNTAX_COMMENT; // Comment color
-        }
-        else if (promelaKeywords.find(word) != promelaKeywords.end())
-        {
-            color = SYNTAX_KEYWORD; // Keyword color
-        }
-        else if (word == "mtype")
-        {
-            color = SYNTAX_CLASS; // mtype color
-        }
-        else if (promelaSymbols.find(word[0]) != promelaSymbols.end())
-        {
-            color = SYNTAX_BRACES; // Symbol color
-        }
-        else if (std::isspace(word[0]))
-        {
-            color = CATPPUCCIN_MOCHA_WHITE; // Whitespace color
-        }
-
-        tokens.push_back({word, color});
-    }
-
-    return tokens;
-}
-
-void RenderPromelaCode(const std::string &code)
-{
-    std::vector<Token> tokens = TokenizePromela(code);
-    for (const auto &token : tokens)
-    {
-        ImGui::TextColored(token.color, "%s", token.text.c_str());
-        ImGui::SameLine(0, 0); // No spacing between tokens
-    }
-    ImGui::NewLine(); // Move to next line after rendering the tokens
-}
-
 void ReplaceTabsWithSpaces(std::vector<std::string> &lines, int spacesPerTab = 4)
 {
     const std::string spaces(spacesPerTab, ' ');
@@ -128,7 +72,9 @@ active proctype A() {
     )";
     lines = SplitStringIntoLines(promelaCode);
 
-    ImGuiIO &io = ImGui::GetIO();
+    io = ImGui::GetIO();
+    style = ImGui::GetStyle();
+
     this->font = io.Fonts->Fonts[1];
 
     ReplaceTabsWithSpaces(lines);
@@ -140,6 +86,7 @@ void CodeEditor::cursorUp(ImGuiKey key)
     {
         cursorY--;
         resetBlink();
+        updateScroll = true;
     }
 }
 
@@ -149,6 +96,7 @@ void CodeEditor::cursorDown(ImGuiKey key)
     {
         cursorY++;
         resetBlink();
+        updateScroll = true;
     }
 }
 
@@ -159,6 +107,7 @@ void CodeEditor::cursorLeft(ImGuiKey key)
         moveCursorInBounds();
         cursorX--;
         resetBlink();
+        updateScroll = true;
     }
 }
 
@@ -168,6 +117,7 @@ void CodeEditor::cursorRight(ImGuiKey key)
     {
         cursorX++;
         resetBlink();
+        updateScroll = true;
     }
 }
 
@@ -179,8 +129,99 @@ void CodeEditor::moveCursorInBounds()
     }
 }
 
+void CodeEditor::RebuildTokens()
+{
+    this->tokens.clear();
+
+    std::regex tokenRegex(R"((\s+|\w+|\W))", std::regex::multiline);
+    for (std::string const &line : lines)
+    {
+        auto wordsBegin = std::sregex_iterator(line.begin(), line.end(), tokenRegex);
+        auto wordsEnd = std::sregex_iterator();
+
+        std::vector<Token> lineTokens;
+
+        for (auto it = wordsBegin; it != wordsEnd; ++it)
+        {
+            std::string word = it->str();
+            ImVec4 color = CATPPUCCIN_MOCHA_WHITE; // Default color
+
+            if (word.starts_with("//"))
+            {
+                color = SYNTAX_COMMENT; // Comment color
+            }
+            else if (promelaKeywords.find(word) != promelaKeywords.end())
+            {
+                color = SYNTAX_KEYWORD; // Keyword color
+            }
+            else if (word == "mtype")
+            {
+                color = SYNTAX_CLASS; // mtype color
+            }
+            else if (promelaSymbols.find(word[0]) != promelaSymbols.end())
+            {
+                color = SYNTAX_BRACES; // Symbol color
+            }
+            else if (std::isspace(word[0]))
+            {
+                color = CATPPUCCIN_MOCHA_WHITE; // Whitespace color
+            }
+
+            lineTokens.push_back({word, color});
+        }
+        auto endLine = tokens.size();
+        this->tokens.push_back(lineTokens);
+    }
+}
+
+void CodeEditor::changed()
+{
+    this->textChanged = true;
+}
+
+void CodeEditor::scroll()
+{
+    if (updateScroll)
+    {
+        spdlog::info("Scrolling");
+        auto y = ImGui::GetScrollY();
+
+        y += 0.1 * (scrollTarget.y - y);
+
+        if (fabs(lastScroll.y - y) < 0.01)
+        {
+            updateScroll = false;
+            lastScroll.y = scrollTarget.y;
+        }
+        else
+        {
+            lastScroll.y = y;
+            lastScroll.x = ImGui::GetScrollX();
+        }
+    }
+}
+
 void CodeEditor::Render()
 {
+    if (updateScroll)
+    {
+        ImGui::SetNextWindowScroll(lastScroll);
+    }
+
+    ImGui::Begin("Editor");
+    ImGui::PushFont(this->font);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
+
+    if (textChanged)
+    {
+        this->RebuildTokens();
+        textChanged = false;
+    }
+
+    scroll();
+
+    static ImGuiIO &io = ImGui::GetIO();
     // Handle Text Input
     if (this->mode == Insert)
     {
@@ -190,6 +231,8 @@ void CodeEditor::Render()
             cursorY++;
             cursorX = 0;
             resetBlink();
+            changed();
+            updateScroll = true;
         }
         else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Backspace)) && cursorX > 0)
         {
@@ -197,12 +240,16 @@ void CodeEditor::Render()
             lines[cursorY].erase(cursorX - 1, 1);
             cursorX--;
             resetBlink();
+            changed();
+            updateScroll = true;
         }
         else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Delete)) && cursorX < lines[cursorY].size())
         {
             moveCursorInBounds();
             lines[cursorY].erase(cursorX, 1);
             resetBlink();
+            changed();
+            updateScroll = true;
         }
         else if (ImGui::GetIO().InputQueueCharacters.Size > 0)
         {
@@ -210,8 +257,10 @@ void CodeEditor::Render()
             moveCursorInBounds();
             lines[cursorY].insert(cursorX, 1, c);
             cursorX++;
-            ImGui::GetIO().InputQueueCharacters.clear();
+            io.InputQueueCharacters.clear();
             resetBlink();
+            changed();
+            updateScroll = true;
         }
     }
 
@@ -225,6 +274,7 @@ void CodeEditor::Render()
     {
         this->mode = Normal;
     }
+
     if (this->mode == Normal && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_I)))
     {
         this->mode = Insert;
@@ -238,40 +288,79 @@ void CodeEditor::Render()
         cursorRight(ImGuiKey_L);
     }
 
-    ImGui::Begin("Editor");
-    ImGui::PushFont(this->font);
     uint32_t n = 0;
     for (const std::string &line : this->lines)
     {
         RenderLine(n++, line);
     }
     ImGui::PopFont();
+    ImGui::PopStyleVar(2);
     ImGui::End();
 }
 
 void CodeEditor::RenderLine(uint32_t n, const std::string &line)
 {
+    static ImDrawList *drawList = ImGui::GetWindowDrawList();
+    float numberlinewidth =
+        ImGui::CalcTextSize("0000").x;            // TODO: Could be calculated with log_10 of the lines of the file
+    ImVec2 textPos = ImGui::GetCursorScreenPos(); // Getting the current position where the text ends for this line
+    ImVec2 cursorPos = textPos;
+
     if (ImGui::GetTime() - blinktime > 0.5)
     {
         blink = !blink;
         blinktime = ImGui::GetTime();
     }
-    static float numberlinewidth =
-        ImGui::CalcTextSize("0000").x; // TODO: Could be calculated with log_10 of the lines of the file
-    ImGui::TextColored(n == cursorY ? CATPPUCCIN_MOCHA_LAVENDER : CATPPUCCIN_MOCHA_OVERLAY1, "%3i", n);
+    if (n == cursorY)
+    {
+        cursorPos.x += ImGui::CalcTextSize(line.substr(0, cursorX).c_str()).x;
+
+        ImVec2 rectMin = ImVec2(0, textPos.y);
+        ImVec2 rectMax = ImVec2(0 + ImGui::GetContentRegionAvail().x, textPos.y + ImGui::GetTextLineHeight());
+        drawList->AddRectFilled(rectMin, rectMax,
+                                ImVec4ToIM_COL32(CATPPUCCIN_MOCHA_TEXT) &
+                                    (0x11000000 | ~0xFF000000)); // Background color for the current line
+
+        auto winsize = ImGui::GetWindowSize();
+        auto scroll = ImVec2(ImGui::GetScrollY(), ImGui::GetScrollMaxY());
+        auto pad = 3 * ImGui::GetTextLineHeight();
+        auto wintop = scroll.x + pad;
+        auto winbot = scroll.x + winsize.y - pad;
+        auto ypos = ImGui::GetCursorPosY();
+
+        if (ypos < wintop)
+        {
+            scrollTarget = ImVec2(0, ypos - pad);
+        }
+        else if (ypos > winbot)
+        {
+            scrollTarget = ImVec2(0, ypos - winsize.y + pad);
+        }
+        else
+        {
+            scrollTarget = ImVec2(0, scroll.x);
+        }
+    }
+
+    ImGui::TextColored(n == cursorY ? CATPPUCCIN_MOCHA_LAVENDER : CATPPUCCIN_MOCHA_OVERLAY1, "%3i ", n);
     ImGui::SameLine();
-    // ImGui::TextColored(ImVec4(1, 1, 1, 1), "%s", line.c_str());
-    RenderPromelaCode(line);
+
+    if (n < tokens.size())
+    {
+        for (auto const &line : tokens[n])
+        {
+            ImGui::TextColored(line.color, "%s", line.text.c_str());
+            ImGui::SameLine(0, 0); // No spacing between tokens
+        }
+    }
+    ImGui::NewLine(); // Move to next line after rendering the tokens
+
     if (n == cursorY && blink)
     {
-        ImVec2 textPos = ImGui::GetCursorScreenPos();
-        ImVec2 cursorPos = textPos;
-        cursorPos.x += ImGui::CalcTextSize(line.substr(0, cursorX).c_str()).x;
-        ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        draw_list->AddLine(ImVec2(cursorPos.x + numberlinewidth, cursorPos.y - 10),
-                           ImVec2(cursorPos.x + numberlinewidth, cursorPos.y - ImGui::GetTextLineHeight()),
-                           ImVec4ToIM_COL32(this->mode == Insert ? CATPPUCCIN_MOCHA_ROSEWATER : CATPPUCCIN_MOCHA_RED),
-                           3);
-        // TODO: Scroll window when cursor goes outside visible region
+
+        drawList->AddLine(ImVec2(cursorPos.x + numberlinewidth, cursorPos.y),
+                          ImVec2(cursorPos.x + numberlinewidth, cursorPos.y + ImGui::GetTextLineHeight()),
+                          ImVec4ToIM_COL32(this->mode == Insert ? CATPPUCCIN_MOCHA_ROSEWATER : CATPPUCCIN_MOCHA_RED),
+                          10 * io.FontGlobalScale);
     }
 }

@@ -1,5 +1,6 @@
 out/
 build/
+wbuild/
 imspin
 Session.vim
 compile_commands.json
