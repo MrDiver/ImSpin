@@ -28,12 +28,9 @@ jobs:
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-    - name: Install Python dependencies
-      run: |
-        pip install jinja2
-
     - name: Configure CMake
       run: >
+        pip install jinja2;
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_BUILD_TYPE=Release
         -S ${{ github.workspace }}
