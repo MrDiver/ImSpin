@@ -24,11 +24,15 @@ jobs:
         python-version: "3.10"
         cache: pip
     - uses: actions/cache@v4
+      id: cache-step
       with:
-        path: build
+        path: |
+          build
+          env
         key: cmake-key
         
     - name: Configure CMake
+      if: steps.cache-step.outputs.cache-hit != 'true'
       run: |
         python -m venv env
         .\env\Scripts\activate
