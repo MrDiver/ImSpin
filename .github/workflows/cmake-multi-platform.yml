@@ -56,7 +56,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m venv env
-        .\env\bin\Activate.ps1
+        .\env\Scripts\Activate.ps1
         pip install jinja2
 
     - name: Verify Jinja2 installation
