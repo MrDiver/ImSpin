@@ -27,7 +27,7 @@ jobs:
     - name: Configure CMake
       run: |
         python -m venv env;
-        .\env\Scripts\Activate.ps1;
+        .\env\Scripts\activate;
         python -m pip install jinja2;
         python --version;
         cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }}
