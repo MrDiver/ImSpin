@@ -27,7 +27,7 @@ jobs:
         -S ${{ github.workspace }}
 
     - name: Build
-      run: echo python --version; python -m pip install jinja2; cmake --build ${{ steps.strings.outputs.build-output-dir }} --config Release
+      run: python --version; python -m pip install jinja2; cmake --build build --config Release
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
