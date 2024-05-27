@@ -23,6 +23,10 @@ jobs:
       with:
         python-version: "3.10"
         cache: pip
+    - uses: actions/cache@v4
+      with:
+        path: build
+        key: cmake-key
         
     - name: Configure CMake
       run: |
