@@ -27,21 +27,12 @@ jobs:
     - name: Configure CMake
       run: |
         python -m venv env
-        # Get the current PATH environment variable
-        $originalPath = [System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::Machine)
-        # Split the PATH variable into individual paths
-        $pathArray = $originalPath -split ';'
-        # Filter out paths that contain "python"
-        $filteredPathArray = $pathArray | Where-Object { $_ -notmatch "hostedtools" }
-        # Join the filtered paths back into a single string
-        $newPath = ($filteredPathArray -join ';')
-        # Set the new PATH environment variable
-        Write-Output "Updated PATH: $newPath"
-        echo "" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
         .\env\Scripts\activate
         python -m pip install jinja2
         python --version
         get-command python
+        (get-command python).source | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
+        (get-command python).source | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
         cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }}
 
     - name: Build
