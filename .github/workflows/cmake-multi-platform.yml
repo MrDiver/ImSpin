@@ -32,14 +32,11 @@ jobs:
         # Split the PATH variable into individual paths
         $pathArray = $originalPath -split ';'
         # Filter out paths that contain "python"
-        $filteredPathArray = $pathArray | Where-Object { $_ -notmatch "python" }
+        $filteredPathArray = $pathArray | Where-Object { $_ -notmatch "hostedtools" }
         # Join the filtered paths back into a single string
         $newPath = ($filteredPathArray -join ';')
         # Set the new PATH environment variable
-        [System.Environment]::SetEnvironmentVariable('PATH', $newPath, [System.EnvironmentVariableTarget]::Machine)
-        # Output the new PATH for verification
         Write-Output "Updated PATH: $newPath"
-        $env:PATH = ""
         echo "" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
         .\env\Scripts\activate
         python -m pip install jinja2
