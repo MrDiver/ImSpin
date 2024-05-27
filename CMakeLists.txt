@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
@@ -40,6 +40,8 @@ FetchContent_Declare(
   glad
   GIT_REPOSITORY https://github.com/Dav1dde/glad.git
   GIT_TAG v2.0.6)
+
+message($ENV{PATH})
 
 if(NOT glad_POPULATED)
     FetchContent_Populate(glad)
