@@ -30,9 +30,7 @@ jobs:
         .\env\Scripts\Activate.ps1;
         python -m pip install jinja2;
         python --version;
-        cmake -Bbuild --clean-first 
-        -DCMAKE_BUILD_TYPE=Release
-        -S ${{ github.workspace }}
+        cmake -Bbuild --clean-first -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }}
 
     - name: Build
       run: | 
@@ -41,5 +39,5 @@ jobs:
         cmake --build build --config Release --clean-first
 
     - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config ${{ matrix.build_type }}
+      working-directory: build
+      run: ctest --build-config Release
