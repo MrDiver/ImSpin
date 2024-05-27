@@ -40,11 +40,11 @@ jobs:
         # Output the new PATH for verification
         Write-Output "Updated PATH: $newPath"
         $env:PATH = $newPath
+        echo $newPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
         .\env\Scripts\activate
         python -m pip install jinja2
         python --version
         get-command python
-        echo $env:PATH
         cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }}
 
     - name: Build
