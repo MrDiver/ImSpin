@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.24)
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
 
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 project("imspin" C CXX)
 
 include(FetchContent)
@@ -60,13 +62,13 @@ if(INSTALL_DEPENDENCIES)
         add_compile_definitions(PC)
     endif()
     FetchContent_Declare(
-    spin
-    GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
-    GIT_TAG e9906664c14c3ddbeedc113cf6da4ff14a2e4bcb)
+        spin
+        GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
+        GIT_TAG 809a31bbba837eb14d4824fe1743cbe90a7028c5)
     FetchContent_Declare(
-    swarm
-    GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
-    GIT_TAG aaffcb2f85043eb9bde04d9ef456350770b47209)
+        swarm
+        GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
+        GIT_TAG 453bcea772cb22d37924488d6d097d1da13d4494)
     FetchContent_MakeAvailable(spin swarm)
 endif()
 
@@ -126,7 +128,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 # LINK IMGUI
 set(IMGUI_BACKEND "glfw")
 set(IMGUI_API "opengl3")
-message(${imgui_SOURCE_DIR})
 file(GLOB IMGUI_SOURCES "${imgui_SOURCE_DIR}/*.cpp")
 file(GLOB IMGUI_HEADERS "${imgui_SOURCE_DIR}/*.h")
 
@@ -158,8 +159,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 # endforeach()
 
 if(WIN32)
-    configure_file(${spin_BINARY_DIR}/src/Release/spin.exe ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe COPYONLY)
-    configure_file(${swarm_BINARY_DIR}/src/Release/swarm.exe ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe COPYONLY)
+    add_custom_command(TARGET ${PROJECT_NAME}
+        POST_BUILD
+        DEPENDS spin
+        COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/Debug/spin.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
+    )
     add_compile_definitions(_WIN32_WINNT=0x0601)
 endif()
 
@@ -168,3 +172,5 @@ endif()
 #endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "bin")
+install(TARGETS spin DESTINATION "bin/extra")
+install(TARGETS swarm DESTINATION "bin/extra")
