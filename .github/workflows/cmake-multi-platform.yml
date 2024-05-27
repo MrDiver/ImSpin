@@ -47,4 +47,4 @@ jobs:
       with:
         name: Executables
         path: |
-          build/**/*.exe
+          Release
