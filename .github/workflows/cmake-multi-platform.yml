@@ -28,7 +28,7 @@ jobs:
       run: |
         python -m venv env;
         .\env\Scripts\Activate.ps1;
-        python -m pip install jinja1;
+        python -m pip install jinja2;
         python --version;
         cmake -Bbuild --clean-first 
         -DCMAKE_BUILD_TYPE=Release
