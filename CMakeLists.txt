@@ -161,8 +161,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 if(WIN32)
     add_custom_command(TARGET ${PROJECT_NAME}
         POST_BUILD
-        DEPENDS spin
-        COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/Debug/spin.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
+        DEPENDS spin swarm
+        COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/spin.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
+        COMMAND ${CMAKE_COMMAND} -E copy "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/swarm.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe
     )
     add_compile_definitions(_WIN32_WINNT=0x0601)
 endif()
