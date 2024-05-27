@@ -27,7 +27,7 @@ jobs:
     - name: Configure CMake
       run: |
         python -m venv env;
-        .\bin\Scripts\Activate.ps1;
+        .\env\Scripts\Activate.ps1;
         python -m pip install jinja1;
         python --version;
         cmake -Bbuild --clean-first 
@@ -36,7 +36,7 @@ jobs:
 
     - name: Build
       run: | 
-        .\bin\Scripts\Activate.ps1;
+        .\env\Scripts\Activate.ps1;
         python --version;
         cmake --build build --config Release --clean-first
 
