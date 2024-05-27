@@ -26,6 +26,7 @@ jobs:
         
     - name: Configure CMake
       run: |
+        python -m venv env
         # Get the current PATH environment variable
         $originalPath = [System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::Machine)
         # Split the PATH variable into individual paths
@@ -39,7 +40,6 @@ jobs:
         # Output the new PATH for verification
         Write-Output "Updated PATH: $newPath"
         $env:PATH = $newPath
-        python -m venv env
         .\env\Scripts\activate
         python -m pip install jinja2
         python --version
