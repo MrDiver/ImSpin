@@ -48,6 +48,22 @@ jobs:
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'  # Specify the Python version you need
+
+    - name: Install Python dependencies
+      run: |
+        python -m venv env
+        source env/bin/activate
+        pip install jinja2
+
+    - name: Verify Jinja2 installation
+      run: |
+        source env/bin/activate
+        python -c "import jinja2; print(jinja2.__version__)"
+
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
