@@ -75,7 +75,9 @@ active proctype A() {
     io = ImGui::GetIO();
     style = ImGui::GetStyle();
 
-    this->font = io.Fonts->Fonts[1];
+    if(io.Fonts->Fonts.size()>1){
+        this->font = io.Fonts->Fonts[1];
+    }
 
     ReplaceTabsWithSpaces(lines);
 }
@@ -187,7 +189,6 @@ void CodeEditor::scroll()
 {
     if (updateScroll)
     {
-        spdlog::info("Scrolling");
         auto y = ImGui::GetScrollY();
 
         y += 0.1 * (scrollTarget.y - y);
@@ -213,7 +214,10 @@ void CodeEditor::Render()
     }
 
     ImGui::Begin("Editor");
-    ImGui::PushFont(this->font);
+    if (this->font)
+    {
+        ImGui::PushFont(this->font);
+    }
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
 
@@ -297,7 +301,10 @@ void CodeEditor::Render()
     {
         RenderLine(n++, line);
     }
-    ImGui::PopFont();
+    if (this->font)
+    {
+        ImGui::PopFont();
+    }
     ImGui::PopStyleVar(2);
     ImGui::End();
 }

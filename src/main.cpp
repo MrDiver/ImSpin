@@ -2,6 +2,7 @@
 #include "nfd.h"
 #define GLAD_GL_IMPLEMENTATION
 #define GLFW_INCLUDE_NONE
+#include <boost/process.hpp>
 #include <glad/gl.h>
 // GLAD BEFORE GLFW
 #include <GLFW/glfw3.h>
@@ -51,11 +52,6 @@ void fileDialog(std::string &filepath, std::string &filecontent)
         buffer << file.rdbuf();
         filecontent = buffer.str();
     }
-}
-
-ImVec4 RGB(int r, int g, int b, int a)
-{
-    return ImVec4(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
 }
 
 void CatppuccinMocha()
@@ -220,6 +216,16 @@ void RenderEditView(CodeEditor &editor)
 
 int main()
 {
+    using namespace boost::process;
+    ipstream pipe_stream;
+    child c("extra/spin.exe", std_out > pipe_stream);
+
+    std::string line;
+
+    while (pipe_stream && std::getline(pipe_stream, line) && !line.empty())
+        spdlog::info("{}", line);
+
+    c.wait();
     // spdlog::set_level(spdlog::level::debug);
     // Initialized GLFW
     glfwSetErrorCallback(error_callback);
@@ -235,7 +241,7 @@ int main()
     ImGuiIO &io = ImGui::GetIO();
     ImGuiStyle &style = ImGui::GetStyle();
     // Scale Configuration
-    float global_scale = 0.1;
+    float global_scale = 0.2;
     io.FontGlobalScale = global_scale;
     RebuildFonts(100);
 
@@ -259,6 +265,7 @@ int main()
         // window.setClearColor(sin(time), -sin(time), 0, 1);
 
         // START RENDERING
+        io.FontGlobalScale = global_scale * ImGui::GetWindowDpiScale();
 
         window.startDrawing();
 
@@ -314,7 +321,7 @@ int main()
 
                 if (ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.04, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp))
                 {
-                    io.FontGlobalScale = global_scale;
+                    io.FontGlobalScale = global_scale * ImGui::GetWindowDpiScale();
                 }
 
                 if (ImGui::Combo("Styles", &current_style, styles, IM_ARRAYSIZE(styles)))

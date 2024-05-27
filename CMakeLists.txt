@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
@@ -22,6 +22,12 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/glfw/glfw.git
   GIT_TAG 3.4)
 
+FetchContent_Declare(
+  boost
+  GIT_REPOSITORY https://github.com/boostorg/boost.git
+  GIT_TAG boost-1.85.0)
+
+  
 FetchContent_Declare(
   glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -47,7 +53,7 @@ if(NOT glad_POPULATED)
     glad_add_library(glad_gl REPRODUCIBLE API gl:compatibility=4.3)
 endif()
 
-FetchContent_MakeAvailable(imgui spdlog glfw glm nfd)
+FetchContent_MakeAvailable(imgui spdlog glfw glm nfd boost)
 
 if(INSTALL_DEPENDENCIES)
     if(WIN32)
@@ -78,8 +84,11 @@ endif()
 file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
 file(GLOB_RECURSE HEADER_FILES "include/*.hpp")
 
+if(NOT WIN32)
+    set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dist)
+endif()
+
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
-set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME}
                            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
@@ -132,13 +141,30 @@ add_library(
 
 target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
 # target_link_libraries(ImGuiFileDialog PUBLIC imgui)
-target_link_libraries(${PROJECT_NAME} PUBLIC imgui glfw spdlog nfd)
+target_link_libraries(${PROJECT_NAME} PUBLIC imgui spdlog nfd)
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process glfw)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 
-file(GLOB FONT_FILES "fonts/*")
-foreach(font ${FONT_FILES})
-    cmake_path(GET font FILENAME fontname)
-    configure_file(fonts/${fontname} fonts/${fontname})
+# file(GLOB FONT_FILES "fonts/*")
+# foreach(font ${FONT_FILES})
+#     cmake_path(GET font FILENAME fontname)
+#     if(WIN32)
+#         configure_file(fonts/${fontname} Debug/fonts/${fontname} COPYONLY)
+#         configure_file(fonts/${fontname} Release/fonts/${fontname} COPYONLY)
+#     else()
+#         configure_file(fonts/${fontname} ${EXECUTABLE_OUTPUT_PATH}/fonts/${fontname})
+#     endif()
+# endforeach()
 
-endforeach()
+if(WIN32)
+    configure_file(${spin_BINARY_DIR}/src/Release/spin.exe ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe COPYONLY)
+    configure_file(${swarm_BINARY_DIR}/src/Release/swarm.exe ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe COPYONLY)
+    add_compile_definitions(_WIN32_WINNT=0x0601)
+endif()
+
+#if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "PACKAGE" CACHE PATH "..." FORCE)
+#endif()
+
+install(TARGETS ${PROJECT_NAME} DESTINATION "bin")

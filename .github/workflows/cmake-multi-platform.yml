@@ -1,0 +1,60 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: CMake on multiple platforms
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5.1.0
+      with:
+        python-version: "3.10"
+        cache: pip
+    - uses: actions/cache@v4
+      id: cache-step
+      with:
+        path: |
+          build
+          env
+        key: cmake-key
+        
+    - name: Configure CMake
+      if: steps.cache-step.outputs.cache-hit != 'true'
+      run: |
+        python -m venv env
+        .\env\Scripts\activate
+        python -m pip install jinja2
+        python --version
+        cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }} -DPython_EXECUTABLE:FILEPATH=$((get-command python).source)
+
+    - name: Build
+      run: | 
+        .\env\Scripts\activate
+        python --version
+        cmake --build build --config Release --clean-first
+
+    - name: Test
+      working-directory: build
+      run: ctest --build-config Release
+
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Executables
+        path: |
+          build/_deps/**/*.exe
+          Release/**/*.exe
+          Release/**/*.ttf
