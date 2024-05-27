@@ -30,17 +30,12 @@ jobs:
         .\env\Scripts\activate
         python -m pip install jinja2
         python --version
-        get-command python
-        (get-command python).source | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
-        (get-command python).source | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-        cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }} # -DPython_EXECUTABLE:FILEPATH=$((get-command python).source)
+        cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }} -DPython_EXECUTABLE:FILEPATH=$((get-command python).source)
 
     - name: Build
       run: | 
         .\env\Scripts\activate
         python --version
-        get-command python
-        echo $env:PATH
         cmake --build build --config Release --clean-first
 
     - name: Test
