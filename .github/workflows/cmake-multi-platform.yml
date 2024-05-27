@@ -19,15 +19,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
+    - uses: actions/setup-python@v5.1.0
+      with:
+        python-version: "3.10"
+        cache: pip
+        
     - name: Configure CMake
-      run: >
-        cmake -Bbuild
+      run: |
+        python -m venv env;
+        .\bin\Scripts\Activate.ps1;
+        python -m pip install jinja1;
+        python --version;
+        cmake -Bbuild --clean-first 
         -DCMAKE_BUILD_TYPE=Release
         -S ${{ github.workspace }}
 
     - name: Build
-      run: python --version; python -m pip install jinja2; cmake --build build --config Release
+      run: | 
+        .\bin\Scripts\Activate.ps1;
+        python --version;
+        cmake --build build --config Release --clean-first
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
