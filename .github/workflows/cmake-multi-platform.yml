@@ -33,7 +33,7 @@ jobs:
         get-command python
         (get-command python).source | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8
         (get-command python).source | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-        cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }} -DPython_EXECUTABLE:FILEPATH=$((get-command python).source)
+        cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }} # -DPython_EXECUTABLE:FILEPATH=$((get-command python).source)
 
     - name: Build
       run: | 
