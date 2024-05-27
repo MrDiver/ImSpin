@@ -52,4 +52,4 @@ jobs:
         name: Executables
         path: |
           build/_deps/**/*.exe
-          Release
+          Release/*
