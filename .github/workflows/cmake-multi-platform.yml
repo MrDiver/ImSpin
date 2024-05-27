@@ -26,16 +26,20 @@ jobs:
         
     - name: Configure CMake
       run: |
-        python -m venv env;
-        .\env\Scripts\activate;
-        python -m pip install jinja2;
-        python --version;
+        python -m venv env
+        .\env\Scripts\activate
+        python -m pip install jinja2
+        python --version
+        get-command python
+        echo $env:PATH
         cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -S ${{ github.workspace }}
 
     - name: Build
       run: | 
-        .\env\Scripts\Activate.ps1;
-        python --version;
+        .\env\Scripts\activate
+        python --version
+        get-command python
+        echo $env:PATH
         cmake --build build --config Release --clean-first
 
     - name: Test
