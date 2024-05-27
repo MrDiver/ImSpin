@@ -26,6 +26,18 @@ jobs:
         
     - name: Configure CMake
       run: |
+        # Get the current PATH environment variable
+        $originalPath = [System.Environment]::GetEnvironmentVariable('PATH', [System.EnvironmentVariableTarget]::Machine)
+        # Split the PATH variable into individual paths
+        $pathArray = $originalPath -split ';'
+        # Filter out paths that contain "python"
+        $filteredPathArray = $pathArray | Where-Object { $_ -notmatch "python" }
+        # Join the filtered paths back into a single string
+        $newPath = ($filteredPathArray -join ';')
+        # Set the new PATH environment variable
+        [System.Environment]::SetEnvironmentVariable('PATH', $newPath, [System.EnvironmentVariableTarget]::Machine)
+        # Output the new PATH for verification
+        Write-Output "Updated PATH: $newPath"
         python -m venv env
         .\env\Scripts\activate
         python -m pip install jinja2
