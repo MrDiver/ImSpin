@@ -75,7 +75,8 @@ active proctype A() {
     io = ImGui::GetIO();
     style = ImGui::GetStyle();
 
-    if(io.Fonts->Fonts.size()>1){
+    if (io.Fonts->Fonts.size() > 1)
+    {
         this->font = io.Fonts->Fonts[1];
     }
 
@@ -135,11 +136,11 @@ void CodeEditor::RebuildTokens()
 {
     this->tokens.clear();
 
-    #ifdef _WIN32
+#ifdef _WIN32
     std::regex tokenRegex(R"((\s+|\w+|\W))");
-    #else
+#else
     std::regex tokenRegex(R"((\s+|\w+|\W))", std::regex::multiline);
-    #endif
+#endif
     for (std::string const &line : lines)
     {
         auto wordsBegin = std::sregex_iterator(line.begin(), line.end(), tokenRegex);

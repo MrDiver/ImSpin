@@ -218,7 +218,8 @@ int main()
 {
     using namespace boost::process;
     ipstream pipe_stream;
-    child c("extra/spin.exe", std_out > pipe_stream);
+    child c("extra/spin",
+            std_out > pipe_stream); // TODO: Make Path config and check the extension with .exe or remove it on linux
 
     std::string line;
 

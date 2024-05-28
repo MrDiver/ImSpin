@@ -8,3 +8,5 @@ compile_commands.json
 Debug
 Release
 env
+thirdparty/
+dist

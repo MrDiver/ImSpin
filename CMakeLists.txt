@@ -24,12 +24,16 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/glfw/glfw.git
   GIT_TAG 3.4)
 
-FetchContent_Declare(
-  boost
-  GIT_REPOSITORY https://github.com/boostorg/boost.git
-  GIT_TAG boost-1.85.0)
+if(NOT boost_POPULATED AND NOT EXISTS
+                           ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/boost)
+    FetchContent_Populate(
+    boost
+    GIT_REPOSITORY https://github.com/boostorg/boost.git
+    GIT_TAG boost-1.85.0
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/boost)
+endif()
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/boost)
 
-  
 FetchContent_Declare(
   glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
@@ -55,20 +59,17 @@ if(NOT glad_POPULATED)
     glad_add_library(glad_gl REPRODUCIBLE API gl:compatibility=4.3)
 endif()
 
-FetchContent_MakeAvailable(imgui spdlog glfw glm nfd boost)
+FetchContent_MakeAvailable(imgui spdlog glfw glm nfd)
 
 if(INSTALL_DEPENDENCIES)
-    if(WIN32)
-        add_compile_definitions(PC)
-    endif()
     FetchContent_Declare(
-        spin
-        GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
-        GIT_TAG 809a31bbba837eb14d4824fe1743cbe90a7028c5)
+    spin
+    GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
+    GIT_TAG 96b40a5555a64c5b3af47264049a967c536bf937)
     FetchContent_Declare(
-        swarm
-        GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
-        GIT_TAG 453bcea772cb22d37924488d6d097d1da13d4494)
+    swarm
+    GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
+    GIT_TAG 8bfa0251edb5f74195fd8fc5a6360e2dab641224)
     FetchContent_MakeAvailable(spin swarm)
 endif()
 
@@ -86,7 +87,7 @@ endif()
 file(GLOB_RECURSE SOURCE_FILES "src/*.cpp")
 file(GLOB_RECURSE HEADER_FILES "include/*.hpp")
 
-if(NOT WIN32)
+if(NOT WIN32 OR MINGW)
     set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dist)
 endif()
 
@@ -108,11 +109,11 @@ if(WIN32)
 
     find_package(OpenGL REQUIRED)
 
-    if (OPENGL_FOUND)
+    if(OPENGL_FOUND)
         message("opengl found")
         message("include dir: ${OPENGL_INCLUDE_DIR}")
         message("link libraries: ${OPENGL_gl_LIBRARY}")
-    else (OPENGL_FOUND)
+    else(OPENGL_FOUND)
         message("opengl not found")
     endif()
     target_link_libraries(${PROJECT_NAME} PUBLIC OpenGL::GL)
@@ -147,30 +148,52 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process glfw)
 # target_sources(${PROJECT_NAME} PRIVATE ${IMGUI_SOURCES} ${IMGUI_HEADERS})
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 
-# file(GLOB FONT_FILES "fonts/*")
-# foreach(font ${FONT_FILES})
-#     cmake_path(GET font FILENAME fontname)
-#     if(WIN32)
-#         configure_file(fonts/${fontname} Debug/fonts/${fontname} COPYONLY)
-#         configure_file(fonts/${fontname} Release/fonts/${fontname} COPYONLY)
-#     else()
-#         configure_file(fonts/${fontname} ${EXECUTABLE_OUTPUT_PATH}/fonts/${fontname})
-#     endif()
-# endforeach()
+# file(GLOB FONT_FILES "fonts/*") foreach(font ${FONT_FILES}) cmake_path(GET
+# font FILENAME fontname) if(WIN32) configure_file(fonts/${fontname}
+# Debug/fonts/${fontname} COPYONLY) configure_file(fonts/${fontname}
+# Release/fonts/${fontname} COPYONLY) else() configure_file(fonts/${fontname}
+# ${EXECUTABLE_OUTPUT_PATH}/fonts/${fontname}) endif() endforeach()
 
-if(WIN32)
-    add_custom_command(TARGET ${PROJECT_NAME}
-        POST_BUILD
-        DEPENDS spin swarm
-        COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/spin.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
-        COMMAND ${CMAKE_COMMAND} -E copy "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/swarm.exe" ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe
-    )
+if(MINGW)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
+    add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD DEPENDS spin swarm
+    COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/spin.exe"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/extra/spin.exe
+    COMMAND ${CMAKE_COMMAND} -E copy "${swarm_BINARY_DIR}/src/swarm.exe"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/extra/swarm.exe)
+endif()
+if(WIN32 AND NOT MINGW)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE PC)
+    add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD DEPENDS spin swarm
+    COMMAND
+      ${CMAKE_COMMAND} -E copy
+      "${spin_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/spin.exe"
+      ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
+    COMMAND
+      ${CMAKE_COMMAND} -E copy
+      "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/swarm.exe"
+      ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe)
     add_compile_definitions(_WIN32_WINNT=0x0601)
 endif()
+if(LINUX)
+    add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD DEPENDS spin swarm
+    COMMAND ${CMAKE_COMMAND} -E copy "${spin_BINARY_DIR}/src/spin"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/extra/spin
+    COMMAND ${CMAKE_COMMAND} -E copy "${swarm_BINARY_DIR}/src/swarm"
+            ${CMAKE_CURRENT_SOURCE_DIR}/dist/extra/swarm)
+endif()
 
-#if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "PACKAGE" CACHE PATH "..." FORCE)
-#endif()
+# if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+set(CMAKE_INSTALL_PREFIX
+    "PACKAGE"
+    CACHE PATH "..." FORCE)
+# endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "bin")
 install(TARGETS spin DESTINATION "bin/extra")

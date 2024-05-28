@@ -1,6 +1,7 @@
 #include "window.hpp"
 #include <spdlog/spdlog.h>
 
+#include "GLFW/glfw3.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "imgui.h"
@@ -118,6 +119,7 @@ Window::Window(int32_t width, int32_t height, const char *name)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
     glfwWindowHint(GLFW_REFRESH_RATE, 60);
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
     this->w = glfwCreateWindow(width, height, name, NULL, NULL);
     if (!this->w)
@@ -146,7 +148,7 @@ Window::Window(int32_t width, int32_t height, const char *name)
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // IF using Docking Branch
     io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts | ImGuiConfigFlags_DpiEnableScaleViewports;
     // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-    //io.Fonts->AddFontFromFileTTF("/usr/share/fonts/TTF/LilexNerdFont-Regular.ttf", 18);
+    // io.Fonts->AddFontFromFileTTF("/usr/share/fonts/TTF/LilexNerdFont-Regular.ttf", 18);
 
     ImGui_ImplGlfw_InitForOpenGL(this->w, true);
     ImGui_ImplOpenGL3_Init();
