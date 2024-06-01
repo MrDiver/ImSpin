@@ -106,6 +106,12 @@ void APIENTRY gl_debug_output(GLenum source, GLenum type, unsigned int id, GLenu
     }
 }
 
+void focus_callback(GLFWwindow *window, int focus)
+{
+    Window *w = (Window *)glfwGetWindowUserPointer(window);
+    w->isFocused = focus;
+}
+
 Window::Window(int32_t width, int32_t height, const char *name)
 {
     if (glfwInit() != GLFW_TRUE)
@@ -118,8 +124,13 @@ Window::Window(int32_t width, int32_t height, const char *name)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-    glfwWindowHint(GLFW_REFRESH_RATE, 60);
+    glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+    // glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
 
     this->w = glfwCreateWindow(width, height, name, NULL, NULL);
     if (!this->w)
@@ -136,6 +147,8 @@ Window::Window(int32_t width, int32_t height, const char *name)
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, nullptr);
+    glfwSetWindowUserPointer(this->w, this);
+    glfwSetWindowFocusCallback(this->w, focus_callback);
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -189,6 +202,11 @@ bool Window::shouldClose()
     return glfwWindowShouldClose(this->w);
 }
 
+void Window::pollEvents()
+{
+    glfwPollEvents();
+}
+
 void Window::startDrawing()
 {
     glfwGetFramebufferSize(this->w, &this->width, &this->height);
@@ -212,8 +230,6 @@ void Window::endDrawing()
         ImGui::RenderPlatformWindowsDefault();
         glfwMakeContextCurrent(backup_current_context);
     }
-
-    glfwPollEvents();
     glfwSwapBuffers(this->w);
 }
 

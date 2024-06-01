@@ -13,6 +13,7 @@ class Window
   public:
     GLFWwindow *w;
     int32_t width, height;
+    bool isFocused = true;
     Window(int32_t width, int32_t height, const char *name);
     ~Window();
 
@@ -24,4 +25,5 @@ class Window
     void startDrawing();
     void endDrawing();
     void setClearColor(float r, float g, float b, float a);
+    void pollEvents();
 };

@@ -3,6 +3,7 @@
 #define GLAD_GL_IMPLEMENTATION
 #define GLFW_INCLUDE_NONE
 #include <boost/process.hpp>
+#include <boost/xpressive/xpressive.hpp>
 #include <glad/gl.h>
 // GLAD BEFORE GLFW
 #include <GLFW/glfw3.h>
@@ -17,10 +18,14 @@
 #endif
 #include "imgui.h"
 
-#include "editor.hpp"
+#include "TextEditor.h"
+#include "config.hpp"
 #include "ezgl.hpp"
+#include "fonts.hpp"
 
 using namespace glm;
+
+static Config config;
 
 void error_callback(int32_t error, const char *description)
 {
@@ -31,7 +36,7 @@ void error_callback(int32_t error, const char *description)
 #define SHORTCUT_SAVE (ImGuiKey_S | ImGuiMod_Ctrl)     // Ctrl+S
 #define SHORTCUT_EXIT (ImGuiKey_Escape | ImGuiMod_Alt) // Alt+F4
 
-void fileDialog(std::string &filepath, std::string &filecontent)
+void fileDialog(std::string &filepath)
 {
     char *outPath;
     nfdfilteritem_t filterItem[2] = {
@@ -41,16 +46,6 @@ void fileDialog(std::string &filepath, std::string &filecontent)
     if (result == NFD_OKAY)
     {
         filepath = outPath;
-        spdlog::info("Trying to open file {}", filepath);
-        std::ifstream file(filepath);
-        if (!file)
-        {
-            spdlog::error("Couldn't open file {}", filepath);
-            return;
-        }
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        filecontent = buffer.str();
     }
 }
 
@@ -120,9 +115,13 @@ void RebuildFonts(float size)
     ImGuiIO &io = ImGui::GetIO();
     io.Fonts->ClearFonts();
     io.Fonts->Clear();
-    io.Fonts->AddFontFromFileTTF("fonts/Roboto.ttf", size);
-    io.Fonts->AddFontFromFileTTF("fonts/FiraCode.ttf", size);
-    io.Fonts->AddFontFromFileTTF("fonts/SauceCodePro.ttf", size);
+    ImFontConfig cfg;
+    cfg.OversampleH = 4;
+    cfg.OversampleV = 4;
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(Roboto_compressed_data_base85, size, &cfg);
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(Fira_compressed_data_base85, size);
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(SauceCodePro_compressed_data_base85, size);
+    // io.Fonts->AddFontFromFileTTF("fonts/SauceCodePro.ttf", size);
     io.Fonts->Build();
 }
 
@@ -149,11 +148,14 @@ void BasicStyling()
     style.PopupBorderSize = 1;
 }
 
-void RenderMenuBar(std::string &filepath, std::string &filecontent)
+void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved)
 {
+    fileOpened = false;
+    fileSaved = false;
     if (ImGui::IsKeyChordPressed(SHORTCUT_OPEN))
     {
-        fileDialog(filepath, filecontent);
+        fileDialog(filepath);
+        fileOpened = true;
     }
 
     if (ImGui::BeginMenuBar())
@@ -162,7 +164,8 @@ void RenderMenuBar(std::string &filepath, std::string &filecontent)
         {
             if (ImGui::MenuItem("Open", "Ctrl+O"))
             {
-                fileDialog(filepath, filecontent);
+                fileDialog(filepath);
+                fileOpened = true;
             }
             ImGui::EndMenu();
         }
@@ -192,7 +195,7 @@ void SetupDockEditView()
     }
 }
 
-void RenderEditView(CodeEditor &editor)
+void RenderEditView(TextEditor &editor)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     SetupDockEditView();
@@ -201,7 +204,11 @@ void RenderEditView(CodeEditor &editor)
     ImGuiID dockSpaceId = ImGui::GetID("EditViewDock");
     ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), dockSpaceFlags);
 
-    editor.Render();
+    ImGui::Begin("Editor");
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1]);
+    editor.Render("promelathing");
+    ImGui::PopFont();
+    ImGui::End();
 
     // ImGui::SetNextWindowDockID(dockRight);
     ImGui::Begin("Automata View");
@@ -214,19 +221,286 @@ void RenderEditView(CodeEditor &editor)
     ImGui::PopStyleVar(1);
 }
 
+static bool TokenizeStyleString(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
+{
+    const char *p = in_begin;
+
+    if (*p == '"')
+    {
+        p++;
+
+        while (p < in_end)
+        {
+            // handle end of string
+            if (*p == '"')
+            {
+                out_begin = in_begin;
+                out_end = p + 1;
+                return true;
+            }
+
+            // handle escape character for "
+            if (*p == '\\' && p + 1 < in_end && p[1] == '"')
+                p++;
+
+            p++;
+        }
+    }
+
+    return false;
+}
+
+static bool TokenizeCharacterLiteral(const char *in_begin, const char *in_end, const char *&out_begin,
+                                     const char *&out_end)
+{
+    const char *p = in_begin;
+
+    if (*p == '\'')
+    {
+        p++;
+
+        // handle escape characters
+        if (p < in_end && *p == '\\')
+            p++;
+
+        if (p < in_end)
+            p++;
+
+        // handle end of character literal
+        if (p < in_end && *p == '\'')
+        {
+            out_begin = in_begin;
+            out_end = p + 1;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool TokenizeIdentifier(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
+{
+    const char *p = in_begin;
+
+    if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')
+    {
+        p++;
+
+        while ((p < in_end) &&
+               ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_'))
+            p++;
+
+        out_begin = in_begin;
+        out_end = p;
+        return true;
+    }
+
+    return false;
+}
+
+static bool TokenizeNumber(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
+{
+    const char *p = in_begin;
+
+    const bool startsWithNumber = *p >= '0' && *p <= '9';
+
+    if (*p != '+' && *p != '-' && !startsWithNumber)
+        return false;
+
+    p++;
+
+    bool hasNumber = startsWithNumber;
+
+    while (p < in_end && (*p >= '0' && *p <= '9'))
+    {
+        hasNumber = true;
+
+        p++;
+    }
+
+    if (hasNumber == false)
+        return false;
+
+    bool isFloat = false;
+    bool isHex = false;
+    bool isBinary = false;
+
+    if (p < in_end)
+    {
+        if (*p == '.')
+        {
+            isFloat = true;
+
+            p++;
+
+            while (p < in_end && (*p >= '0' && *p <= '9'))
+                p++;
+        }
+        else if (*p == 'x' || *p == 'X')
+        {
+            // hex formatted integer of the type 0xef80
+
+            isHex = true;
+
+            p++;
+
+            while (p < in_end && ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))
+                p++;
+        }
+        else if (*p == 'b' || *p == 'B')
+        {
+            // binary formatted integer of the type 0b01011101
+
+            isBinary = true;
+
+            p++;
+
+            while (p < in_end && (*p >= '0' && *p <= '1'))
+                p++;
+        }
+    }
+
+    if (isHex == false && isBinary == false)
+    {
+        // floating point exponent
+        if (p < in_end && (*p == 'e' || *p == 'E'))
+        {
+            isFloat = true;
+
+            p++;
+
+            if (p < in_end && (*p == '+' || *p == '-'))
+                p++;
+
+            bool hasDigits = false;
+
+            while (p < in_end && (*p >= '0' && *p <= '9'))
+            {
+                hasDigits = true;
+
+                p++;
+            }
+
+            if (hasDigits == false)
+                return false;
+        }
+
+        // single precision floating point type
+        if (p < in_end && *p == 'f')
+            p++;
+    }
+
+    if (isFloat == false)
+    {
+        // integer size type
+        while (p < in_end && (*p == 'u' || *p == 'U' || *p == 'l' || *p == 'L'))
+            p++;
+    }
+
+    out_begin = in_begin;
+    out_end = p;
+    return true;
+}
+
+static bool TokenizePunctuation(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
+{
+    (void)in_end;
+
+    switch (*in_begin)
+    {
+    case '[':
+    case ']':
+    case '{':
+    case '}':
+    case '!':
+    case '%':
+    case '^':
+    case '&':
+    case '*':
+    case '(':
+    case ')':
+    case '-':
+    case '+':
+    case '=':
+    case '~':
+    case '|':
+    case '<':
+    case '>':
+    case '?':
+    case ':':
+    case '/':
+    case ';':
+    case ',':
+    case '.':
+        out_begin = in_begin;
+        out_end = in_begin + 1;
+        return true;
+    }
+
+    return false;
+}
+
+TextEditor::LanguageDefinition createPromelaLanguage()
+{
+    TextEditor::LanguageDefinition promela;
+    promela.mName = "Promela";
+    promela.mKeywords = {
+        "active", "assert",   "atomic", "bool",   "break", "byte",   "case",    "chan",   "d_step",   "do",    "else",
+        "else",   "eval",     "false",  "fi",     "goto",  "hidden", "if",      "inline", "int",      "local", "mtype",
+        "od",     "proctype", "return", "select", "short", "skip",   "timeout", "true",   "unsigned", "xr",    "xs",
+    };
+
+    promela.mTokenize = [](const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end,
+                           TextEditor::PaletteIndex &paletteIndex) -> bool {
+        paletteIndex = TextEditor::PaletteIndex::Max;
+
+        while (in_begin < in_end && isascii(*in_begin) && isblank(*in_begin))
+            in_begin++;
+
+        if (in_begin == in_end)
+        {
+            out_begin = in_end;
+            out_end = in_end;
+            paletteIndex = TextEditor::PaletteIndex::Default;
+        }
+        else if (TokenizeStyleString(in_begin, in_end, out_begin, out_end))
+            paletteIndex = TextEditor::PaletteIndex::String;
+        else if (TokenizeCharacterLiteral(in_begin, in_end, out_begin, out_end))
+            paletteIndex = TextEditor::PaletteIndex::CharLiteral;
+        else if (TokenizeIdentifier(in_begin, in_end, out_begin, out_end))
+            paletteIndex = TextEditor::PaletteIndex::Identifier;
+        else if (TokenizeNumber(in_begin, in_end, out_begin, out_end))
+            paletteIndex = TextEditor::PaletteIndex::Number;
+        else if (TokenizePunctuation(in_begin, in_end, out_begin, out_end))
+            paletteIndex = TextEditor::PaletteIndex::Punctuation;
+
+        return paletteIndex != TextEditor::PaletteIndex::Max;
+    };
+    promela.mCommentStart = "/*";
+    promela.mCommentEnd = "*/";
+    promela.mSingleLineComment = "//";
+    return promela;
+}
+
 int main()
 {
     using namespace boost::process;
-    ipstream pipe_stream;
-    child c("extra/spin",
-            std_out > pipe_stream); // TODO: Make Path config and check the extension with .exe or remove it on linux
+    using namespace boost::xpressive;
 
-    std::string line;
+    // Reading Config
+    {
+        std::ifstream file("config.json");
+        if (file)
+        {
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            std::string config_content = buffer.str();
+            nlohmann::json j = nlohmann::json::parse(config_content);
+            config = j.template get<Config>();
+        }
+    }
 
-    while (pipe_stream && std::getline(pipe_stream, line) && !line.empty())
-        spdlog::info("{}", line);
-
-    c.wait();
+    // Main
     // spdlog::set_level(spdlog::level::debug);
     // Initialized GLFW
     glfwSetErrorCallback(error_callback);
@@ -241,32 +515,131 @@ int main()
 
     ImGuiIO &io = ImGui::GetIO();
     ImGuiStyle &style = ImGui::GetStyle();
-    // Scale Configuration
-    float global_scale = 0.2;
-    io.FontGlobalScale = global_scale;
-    RebuildFonts(100);
 
     // Variables for custom styles
     const char *styles[] = {"VioletDark", "Dark", "Light"};
     int current_style = 0;
 
     // Filepath variables
-    std::string filepath;
+    std::string filepath = "example.pml";
     std::string filecontent;
+    bool fileOpened = true, fileSaved = false;
     bool window_open = true;
-    CodeEditor editor("Editor");
+    TextEditor edit;
+
+    TextEditor::ErrorMarkers markers;
+
+    edit.SetLanguageDefinition(createPromelaLanguage());
 
     BasicStyling();
     CatppuccinMocha();
-    io.FontGlobalScale = global_scale;
+    RebuildFonts(100);
+    ImGui::SetNextWindowRefreshPolicy(ImGuiWindowRefreshFlags_TryToAvoidRefresh);
+
+    double lastTimeSyntax = glfwGetTime();
+    bool syntaxChecked = false;
+    sregex linenoRegex = sregex::compile("(\\d+)");
+    smatch what;
 
     while (!window.shouldClose())
     {
+        window.pollEvents();
         double time = glfwGetTime();
         // window.setClearColor(sin(time), -sin(time), 0, 1);
 
         // START RENDERING
-        io.FontGlobalScale = global_scale * ImGui::GetWindowDpiScale();
+        io.FontGlobalScale = config.global_scale * ImGui::GetWindowDpiScale();
+        if (!window.isFocused)
+        {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+
+        if (fileOpened)
+        {
+            spdlog::info("Trying to open file {}", filepath);
+            std::ifstream file(filepath);
+            if (!file)
+            {
+                spdlog::error("Couldn't open file {}", filepath);
+            }
+            else
+            {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                filecontent = buffer.str();
+
+                spdlog::info("Setting text in editor");
+                edit.SetText(filecontent);
+            }
+        }
+        if (edit.IsTextChanged())
+        {
+            lastTimeSyntax = time;
+            syntaxChecked = false;
+            markers.clear();
+        }
+
+        if ((time - lastTimeSyntax) > config.syntaxCheckDelay && !syntaxChecked)
+        {
+            syntaxChecked = true;
+            std::ofstream tmpfile(".tmp.pml");
+            if (tmpfile)
+            {
+                tmpfile << edit.GetText();
+                tmpfile.close();
+            }
+
+            ipstream pipe_stream;
+            child c(config.spin_path + " .tmp.pml", std_out > pipe_stream);
+
+            std::string line;
+            int lastline = -1;
+            std::string error_text;
+
+            while (pipe_stream && std::getline(pipe_stream, line) && !line.empty())
+            {
+                int findError = line.find("Error:");
+                spdlog::info("Line {} {}", line, findError);
+                if (findError == -1)
+                {
+                    break;
+                }
+                if (regex_search(line, what, linenoRegex))
+                {
+                    if (what.size() <= 1 || line == "")
+                    {
+                        break;
+                    }
+                    int currentline = std::stoi(what[1].str());
+                    std::string currentError = std::string(line.substr(findError));
+                    if (lastline != currentline)
+                    {
+                        if (lastline != -1)
+                        {
+                            markers.insert(std::make_pair<int, std::string>(int(lastline), std::string(error_text)));
+                        }
+                        error_text = currentError;
+                    }
+                    else
+                    {
+                        error_text += "\n" + currentError;
+                    }
+                    lastline = currentline;
+                }
+            }
+            if (lastline != -1)
+            {
+                markers.insert(std::make_pair<int, std::string>(int(lastline), std::string(error_text)));
+            }
+
+            // TODO: Parse warnings add them to TextEditor Repo and process preprocessor errors on stderr
+            // TODO: Look into parsing messages from run and make config menu thing
+
+            edit.SetErrorMarkers(markers);
+
+            c.wait();
+        }
 
         window.startDrawing();
 
@@ -286,14 +659,13 @@ int main()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::Begin("TabWindow", &window_open, window_flags);
         ImGui::PopStyleVar(1);
-
-        RenderMenuBar(filepath, filecontent);
+        RenderMenuBar(filepath, fileOpened, fileSaved);
 
         if (ImGui::BeginTabBar("Tabs"))
         {
             if (ImGui::BeginTabItem("Edit/View"))
             {
-                RenderEditView(editor);
+                RenderEditView(edit);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Simulate/Replay"))
@@ -318,12 +690,14 @@ int main()
             }
             if (ImGui::BeginTabItem("Settings"))
             {
-                ImGui::ShowFontSelector("Font");
-
-                if (ImGui::DragFloat("Scale", &global_scale, 0.005f, 0.04, 2.0, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+                if (ImGui::DragFloat("Scale", &config.global_scale, 0.005f, 0.04, 1.0, "%.2f",
+                                     ImGuiSliderFlags_AlwaysClamp))
                 {
-                    io.FontGlobalScale = global_scale * ImGui::GetWindowDpiScale();
+                    io.FontGlobalScale = config.global_scale * ImGui::GetWindowDpiScale();
                 }
+
+                ImGui::DragFloat("Scale", &config.syntaxCheckDelay, 0.1f, 0.1, 3.0, "%.2f",
+                                 ImGuiSliderFlags_AlwaysClamp);
 
                 if (ImGui::Combo("Styles", &current_style, styles, IM_ARRAYSIZE(styles)))
                 {
@@ -350,12 +724,21 @@ int main()
         ImGui::PopStyleVar(2);
         /* ImGui::ShowStyleEditor(); */
         /* ImGui::ShowDemoWindow(); */
-
         window.endDrawing();
 
         // END RENDERING
     }
 
     NFD_Quit();
+    {
+        spdlog::info("Writing Config");
+        std::ofstream file("config.json");
+        nlohmann::json j = config;
+        if (file)
+        {
+            file << j;
+            file.close();
+        }
+    }
     return EXIT_SUCCESS;
 }
