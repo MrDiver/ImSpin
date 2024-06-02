@@ -22,10 +22,9 @@
 #include "config.hpp"
 #include "ezgl.hpp"
 #include "fonts.hpp"
+#include "spinwrap.hpp"
 
 using namespace glm;
-
-static Config config;
 
 void error_callback(int32_t error, const char *description)
 {
@@ -148,14 +147,19 @@ void BasicStyling()
     style.PopupBorderSize = 1;
 }
 
-void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved)
+void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved, bool &fileFormat)
 {
     fileOpened = false;
     fileSaved = false;
+    fileFormat = false;
     if (ImGui::IsKeyChordPressed(SHORTCUT_OPEN))
     {
         fileDialog(filepath);
         fileOpened = true;
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiKey_F | ImGuiKey_LeftAlt | ImGuiKey_LeftCtrl))
+    {
+        fileFormat = true;
     }
 
     if (ImGui::BeginMenuBar())
@@ -166,6 +170,11 @@ void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved)
             {
                 fileDialog(filepath);
                 fileOpened = true;
+            }
+
+            if (ImGui::MenuItem("Format", "Ctrl+Alt+F"))
+            {
+                fileFormat = true;
             }
             ImGui::EndMenu();
         }
@@ -482,6 +491,10 @@ TextEditor::LanguageDefinition createPromelaLanguage()
     return promela;
 }
 
+void formatProgram(std::string &filecontent)
+{
+}
+
 int main()
 {
     using namespace boost::process;
@@ -523,11 +536,9 @@ int main()
     // Filepath variables
     std::string filepath = "example.pml";
     std::string filecontent;
-    bool fileOpened = true, fileSaved = false;
+    bool fileOpened = true, fileSaved = false, fileFormat = false;
     bool window_open = true;
     TextEditor edit;
-
-    TextEditor::ErrorMarkers markers;
 
     edit.SetLanguageDefinition(createPromelaLanguage());
 
@@ -538,8 +549,6 @@ int main()
 
     double lastTimeSyntax = glfwGetTime();
     bool syntaxChecked = false;
-    sregex linenoRegex = sregex::compile("(\\d+)");
-    smatch what;
 
     while (!window.shouldClose())
     {
@@ -573,72 +582,23 @@ int main()
                 edit.SetText(filecontent);
             }
         }
+
+        if (fileFormat)
+        {
+            edit.SetText(spin::formatFile(edit.GetText()));
+        }
+
         if (edit.IsTextChanged())
         {
             lastTimeSyntax = time;
             syntaxChecked = false;
-            markers.clear();
         }
 
         if ((time - lastTimeSyntax) > config.syntaxCheckDelay && !syntaxChecked)
         {
             syntaxChecked = true;
-            std::ofstream tmpfile(".tmp.pml");
-            if (tmpfile)
-            {
-                tmpfile << edit.GetText();
-                tmpfile.close();
-            }
 
-            ipstream pipe_stream;
-            child c(config.spin_path + " .tmp.pml", std_out > pipe_stream);
-
-            std::string line;
-            int lastline = -1;
-            std::string error_text;
-
-            while (pipe_stream && std::getline(pipe_stream, line) && !line.empty())
-            {
-                int findError = line.find("Error:");
-                spdlog::info("Line {} {}", line, findError);
-                if (findError == -1)
-                {
-                    break;
-                }
-                if (regex_search(line, what, linenoRegex))
-                {
-                    if (what.size() <= 1 || line == "")
-                    {
-                        break;
-                    }
-                    int currentline = std::stoi(what[1].str());
-                    std::string currentError = std::string(line.substr(findError));
-                    if (lastline != currentline)
-                    {
-                        if (lastline != -1)
-                        {
-                            markers.insert(std::make_pair<int, std::string>(int(lastline), std::string(error_text)));
-                        }
-                        error_text = currentError;
-                    }
-                    else
-                    {
-                        error_text += "\n" + currentError;
-                    }
-                    lastline = currentline;
-                }
-            }
-            if (lastline != -1)
-            {
-                markers.insert(std::make_pair<int, std::string>(int(lastline), std::string(error_text)));
-            }
-
-            // TODO: Parse warnings add them to TextEditor Repo and process preprocessor errors on stderr
-            // TODO: Look into parsing messages from run and make config menu thing
-
-            edit.SetErrorMarkers(markers);
-
-            c.wait();
+            edit.SetErrorMarkers(spin::generateErrorMarkers(edit.GetText()));
         }
 
         window.startDrawing();
@@ -659,7 +619,7 @@ int main()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::Begin("TabWindow", &window_open, window_flags);
         ImGui::PopStyleVar(1);
-        RenderMenuBar(filepath, fileOpened, fileSaved);
+        RenderMenuBar(filepath, fileOpened, fileSaved, fileFormat);
 
         if (ImGui::BeginTabBar("Tabs"))
         {

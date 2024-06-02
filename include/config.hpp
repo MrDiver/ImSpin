@@ -13,3 +13,5 @@ struct Config
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, recentFiles, global_scale);
+
+extern Config config;

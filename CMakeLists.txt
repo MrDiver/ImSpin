@@ -95,9 +95,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CONFIG EXECUTABLE
 set(SOURCE_FILES "src/editor.cpp" "src/ezgl.cpp" "src/main.cpp"
-                 "src/window.cpp")
-set(HEADER_FILES "include/colors.hpp" "include/editor.hpp" "include/ezgl.hpp"
-                 "include/fonts.hpp" "include/window.hpp" "include/config.hpp")
+                 "src/window.cpp" "src/config.cpp" "src/spinwrap.cpp")
+set(HEADER_FILES
+    "include/colors.hpp"
+    "include/editor.hpp"
+    "include/ezgl.hpp"
+    "include/fonts.hpp"
+    "include/window.hpp"
+    "include/config.hpp"
+    "include/spinwrap.hpp")
 
 if(NOT WIN32 OR MINGW)
   set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dist)
