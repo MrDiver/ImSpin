@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 # CONFIG FOR CPP 20
 option(INSTALL_DEPENDENCIES "Installs dependencies for ImSpin (spin, swarm)" ON)
 
-set(CMAKE_CONFIGURATION_TYPES Debug Release)
+# set(CMAKE_CONFIGURATION_TYPES Debug Release)
 
 project("imspin" C CXX)
 
@@ -80,7 +80,7 @@ if(INSTALL_DEPENDENCIES)
   FetchContent_Declare(
     spin
     GIT_REPOSITORY https://gitlab.com/MrDiver/spin.git
-    GIT_TAG 96b40a5555a64c5b3af47264049a967c536bf937)
+    GIT_TAG 7e4074411be38c5902e7d021625172421822e066)
   FetchContent_Declare(
     swarm
     GIT_REPOSITORY https://gitlab.com/MrDiver/swarm.git
@@ -167,7 +167,7 @@ add_executable(binary_to_comrpessed_c
 # LINK LIBRARIES
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui spdlog nfd
                                              nlohmann_json::nlohmann_json)
-target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process glfw)
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process Boost::xpressive glfw)
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 
 if(MINGW)
@@ -187,13 +187,16 @@ if(WIN32 AND NOT MINGW)
     POST_BUILD DEPENDS spin swarm
     COMMAND
       ${CMAKE_COMMAND} -E copy
-      "${spin_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/spin.exe"
+      "${spin_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>$<$<CONFIG:RelWithDebInfo>:Release>/spin.exe"
       ${CMAKE_CURRENT_SOURCE_DIR}/extra/spin.exe
     COMMAND
       ${CMAKE_COMMAND} -E copy
-      "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/swarm.exe"
+      "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>$<$<CONFIG:RelWithDebInfo>:Release>/swarm.exe"
       ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe)
   add_compile_definitions(_WIN32_WINNT=0x0601)
+  
+    #target_compile_options(${PROJECT_NAME} PRIVATE /fsanitize=address /O)
+    #target_link_options(${PROJECT_NAME} PRIVATE /fsanitize=address)
 endif()
 if(LINUX)
   add_custom_command(
@@ -215,9 +218,9 @@ if(LINUX)
   if(${CMAKE_BUILD_TYPE} MATCHES "Release")
     target_compile_options(${PROJECT_NAME} PRIVATE -O2)
   else()
-    # target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address -O)
-    # target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
-    # target_compile_definitions(${PROJECT_NAME} PRIVATE _FORTIFY_SOURCE)
+    target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address -O)
+    target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE _FORTIFY_SOURCE)
   endif()
 endif()
 

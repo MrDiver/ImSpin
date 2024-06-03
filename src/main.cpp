@@ -25,21 +25,52 @@
 #include "spinwrap.hpp"
 
 using namespace glm;
+using namespace boost::process;
+namespace fs = std::filesystem;
+
+// FIXME: Make flag to not overwrite layout when imgui.config exists
 
 void error_callback(int32_t error, const char *description)
 {
     spdlog::error(description);
 }
 
-#define SHORTCUT_OPEN (ImGuiKey_O | ImGuiMod_Ctrl)     // Ctrl+O
-#define SHORTCUT_SAVE (ImGuiKey_S | ImGuiMod_Ctrl)     // Ctrl+S
-#define SHORTCUT_EXIT (ImGuiKey_Escape | ImGuiMod_Alt) // Alt+F4
+#define SHORTCUT_OPEN (ImGuiKey_O | ImGuiMod_Ctrl)                  // Ctrl+O
+#define SHORTCUT_SAVE (ImGuiKey_S | ImGuiMod_Ctrl)                  // Ctrl+S
+#define SHORTCUT_EXIT (ImGuiKey_F4 | ImGuiMod_Alt)                  // Alt+F4
+#define SHORTCUT_FORMAT (ImGuiKey_F | ImGuiMod_Alt | ImGuiMod_Ctrl) // Ctrl+Alt+F
 
-void fileDialog(std::string &filepath)
+void fileDialogPml(std::string &filepath)
 {
     char *outPath;
     nfdfilteritem_t filterItem[2] = {
         {"Source code", "pml"},
+    };
+    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, NULL);
+    if (result == NFD_OKAY)
+    {
+        filepath = outPath;
+    }
+}
+
+void fileDialogExe(std::string &filepath)
+{
+    char *outPath;
+    nfdfilteritem_t filterItem[2] = {
+        {"Executable", "exe"},
+    };
+    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, NULL);
+    if (result == NFD_OKAY)
+    {
+        filepath = outPath;
+    }
+}
+
+void fileDialogTrail(std::string &filepath)
+{
+    char *outPath;
+    nfdfilteritem_t filterItem[2] = {
+        {"Trail", "trail"},
     };
     nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, NULL);
     if (result == NFD_OKAY)
@@ -154,13 +185,13 @@ void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved, boo
     fileFormat = false;
     if (ImGui::IsKeyChordPressed(SHORTCUT_OPEN))
     {
-        fileDialog(filepath);
+        fileDialogPml(filepath);
         fileOpened = true;
     }
-    if (ImGui::IsKeyChordPressed(ImGuiKey_F | ImGuiKey_LeftAlt | ImGuiKey_LeftCtrl))
-    {
-        fileFormat = true;
-    }
+    /* if (ImGui::IsKeyChordPressed(SHORTCUT_FORMAT))
+     {
+         fileFormat = true;
+     }*/
 
     if (ImGui::BeginMenuBar())
     {
@@ -168,14 +199,14 @@ void RenderMenuBar(std::string &filepath, bool &fileOpened, bool &fileSaved, boo
         {
             if (ImGui::MenuItem("Open", "Ctrl+O"))
             {
-                fileDialog(filepath);
+                fileDialogPml(filepath);
                 fileOpened = true;
             }
 
-            if (ImGui::MenuItem("Format", "Ctrl+Alt+F"))
-            {
-                fileFormat = true;
-            }
+            // if (ImGui::MenuItem("Format", "Ctrl+Alt+F"))
+            //{
+            //     fileFormat = true;
+            // }
             ImGui::EndMenu();
         }
 
@@ -230,270 +261,178 @@ void RenderEditView(TextEditor &editor)
     ImGui::PopStyleVar(1);
 }
 
-static bool TokenizeStyleString(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
+void SetupDockSimulateView()
 {
-    const char *p = in_begin;
-
-    if (*p == '"')
+    static bool editViewDockInitialized = false;
+    if (!editViewDockInitialized)
     {
-        p++;
+        static ImGuiID dockSpaceId = ImGui::GetID("SimulateViewDock");
+        ImGuiID dockUp, dockDown, dockLeft, dockRight;
 
-        while (p < in_end)
+        ImGui::DockBuilderRemoveNode(dockSpaceId);
+        ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceId, ImGui::GetWindowSize());
+        dockDown = ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Down, 0.25, nullptr, &dockSpaceId);
+        dockRight = ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Right, 0.25, nullptr, &dockSpaceId);
+        ImGui::DockBuilderDockWindow("Editor", dockSpaceId);
+        ImGui::DockBuilderDockWindow("Automata View", dockRight);
+        ImGui::DockBuilderDockWindow("Log", dockDown);
+        ImGui::DockBuilderFinish(dockSpaceId);
+        editViewDockInitialized = true;
+    }
+}
+
+void RenderSimulationView(TextEditor &editor)
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    // SetupDockEditView();
+
+    ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_PassthruCentralNode;
+    ImGuiID dockSpaceId = ImGui::GetID("SimulateViewDock");
+    ImGui::DockSpace(dockSpaceId, ImVec2(0.0f, 0.0f), dockSpaceFlags);
+    // ImGui::SetNextWindowDockID(dockRight);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 20));
+    if (ImGui::Begin("Simulation Settings", NULL))
+    {
+        if (ImGui::BeginTable("SplitTable", 3,
+                              ImGuiTableFlags_Resizable | ImGuiTableFlags_NoSavedSettings |
+                                  ImGuiTableFlags_BordersInner))
         {
-            // handle end of string
-            if (*p == '"')
+            ImGui::TableNextColumn();
             {
-                out_begin = in_begin;
-                out_end = p + 1;
-                return true;
+                ImGui::Text("Mode");
+                ImGui::RadioButton("Random with seed", (int *)&config.simulationMode, RANDOM);
+                ImGui::SameLine();
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::InputInt("##Seed", &config.seed);
+                ImGui::PopItemWidth();
+                ImGui::RadioButton("Interactive (for resolution of all nondeterminism)", (int *)&config.simulationMode,
+                                   INTERACTIVE);
+                ImGui::RadioButton("Guided, with trail: ", (int *)&config.simulationMode, GUIDED);
+                ImGui::SameLine();
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Browse").x - 60);
+                ImGui::InputText("##TrailPath", config.trailPath, 256);
+                ImGui::PopItemWidth();
+                ImGui::SameLine();
+                if (ImGui::Button("Browse"))
+                {
+                    std::string tmp;
+                    fileDialogTrail(tmp);
+                    strncpy(config.trailPath, tmp.c_str(), tmp.size());
+                }
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+                ImGui::InputInt("Initial steps skipped", &config.initialStepsSkipped);
+                ImGui::InputInt("Maximum number of steps", &config.maximumNumberOfSteps);
+                ImGui::PopItemWidth();
+                ImGui::Checkbox("Track Data Values (this can be slow)", &config.trackDataValues);
             }
-
-            // handle escape character for "
-            if (*p == '\\' && p + 1 < in_end && p[1] == '"')
-                p++;
-
-            p++;
-        }
-    }
-
-    return false;
-}
-
-static bool TokenizeCharacterLiteral(const char *in_begin, const char *in_end, const char *&out_begin,
-                                     const char *&out_end)
-{
-    const char *p = in_begin;
-
-    if (*p == '\'')
-    {
-        p++;
-
-        // handle escape characters
-        if (p < in_end && *p == '\\')
-            p++;
-
-        if (p < in_end)
-            p++;
-
-        // handle end of character literal
-        if (p < in_end && *p == '\'')
-        {
-            out_begin = in_begin;
-            out_end = p + 1;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool TokenizeIdentifier(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    const char *p = in_begin;
-
-    if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')
-    {
-        p++;
-
-        while ((p < in_end) &&
-               ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_'))
-            p++;
-
-        out_begin = in_begin;
-        out_end = p;
-        return true;
-    }
-
-    return false;
-}
-
-static bool TokenizeNumber(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    const char *p = in_begin;
-
-    const bool startsWithNumber = *p >= '0' && *p <= '9';
-
-    if (*p != '+' && *p != '-' && !startsWithNumber)
-        return false;
-
-    p++;
-
-    bool hasNumber = startsWithNumber;
-
-    while (p < in_end && (*p >= '0' && *p <= '9'))
-    {
-        hasNumber = true;
-
-        p++;
-    }
-
-    if (hasNumber == false)
-        return false;
-
-    bool isFloat = false;
-    bool isHex = false;
-    bool isBinary = false;
-
-    if (p < in_end)
-    {
-        if (*p == '.')
-        {
-            isFloat = true;
-
-            p++;
-
-            while (p < in_end && (*p >= '0' && *p <= '9'))
-                p++;
-        }
-        else if (*p == 'x' || *p == 'X')
-        {
-            // hex formatted integer of the type 0xef80
-
-            isHex = true;
-
-            p++;
-
-            while (p < in_end && ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))
-                p++;
-        }
-        else if (*p == 'b' || *p == 'B')
-        {
-            // binary formatted integer of the type 0b01011101
-
-            isBinary = true;
-
-            p++;
-
-            while (p < in_end && (*p >= '0' && *p <= '1'))
-                p++;
-        }
-    }
-
-    if (isHex == false && isBinary == false)
-    {
-        // floating point exponent
-        if (p < in_end && (*p == 'e' || *p == 'E'))
-        {
-            isFloat = true;
-
-            p++;
-
-            if (p < in_end && (*p == '+' || *p == '-'))
-                p++;
-
-            bool hasDigits = false;
-
-            while (p < in_end && (*p >= '0' && *p <= '9'))
+            ImGui::TableNextColumn();
             {
-                hasDigits = true;
-
-                p++;
+                ImGui::Text("A Full Channel");
+                ImGui::RadioButton("blocks new messages", (int *)&config.channelMode, BLOCKING);
+                ImGui::RadioButton("loses new messages", (int *)&config.channelMode, LOSING);
+                ImGui::Checkbox("MSC+stmnt", &config.MSCStmnt);
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("MSC max text width").x -
+                                     20);
+                ImGui::InputInt("MSC max text width", &config.MSCMaxTextWidth, 1, 1000);
+                ImGui::InputInt("MSC update delay", &config.MSCUpdateDelay, 1, 1000);
+                ImGui::PopItemWidth();
             }
-
-            if (hasDigits == false)
-                return false;
+            ImGui::TableNextColumn();
+            {
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("Tracked Variable").x - 20);
+                ImGui::Text("Output Filtering [regex]");
+                ImGui::InputText("Process Ids", config.filterProcessIds, 256);
+                ImGui::InputText("Queue Ids", config.filterQueueIds, 256);
+                ImGui::InputText("Var Names", config.filterVarNames, 256);
+                ImGui::InputText("Tracked Variable", config.filterTrackedVariable, 256);
+                ImGui::InputText("Track Scaling", config.filterTrackScaling, 256);
+                ImGui::PopItemWidth();
+            }
+            ImGui::EndTable();
         }
-
-        // single precision floating point type
-        if (p < in_end && *p == 'f')
-            p++;
     }
-
-    if (isFloat == false)
+    ImGui::End();
+    if (ImGui::Begin("Controls"))
     {
-        // integer size type
-        while (p < in_end && (*p == 'u' || *p == 'U' || *p == 'l' || *p == 'L'))
-            p++;
+        int tmp = ImGui::CalcTextSize(" Step Backward   ").x;
+        ImGui::Button("(Re)Run", ImVec2(tmp, 0));
+        ImGui::Button("Stop", ImVec2(tmp, 0));
+        ImGui::Button("Rewind", ImVec2(tmp, 0));
+        ImGui::Button("Step Forward", ImVec2(tmp, 0));
+        ImGui::Button("Step Backward", ImVec2(tmp, 0));
     }
+    ImGui::End();
+    if (ImGui::Begin("Command"))
+    {
+        int tmp = ImGui::CalcTextSize(" Step Backward   ").x;
+        ImGui::Text("spin ");
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
 
-    out_begin = in_begin;
-    out_end = p;
-    return true;
+    ImGui::Begin("Simulation Editor");
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1]);
+    editor.Render("promelathing");
+    ImGui::PopFont();
+    ImGui::End();
+
+    // ImGui::SetNextWindowDockID(dockDown);
+    ImGui::Begin("Simulation Log");
+    ImGui::End();
+
+    ImGui::PopStyleVar(1);
 }
 
-static bool TokenizePunctuation(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    (void)in_end;
 
-    switch (*in_begin)
+std::vector<std::string> getProgramFilesPaths()
+{
+    std::vector<std::string> paths;
+    char *programFiles = getenv("ProgramFiles");
+    char *programFilesX86 = getenv("ProgramFiles(x86)");
+
+    if (programFiles)
     {
-    case '[':
-    case ']':
-    case '{':
-    case '}':
-    case '!':
-    case '%':
-    case '^':
-    case '&':
-    case '*':
-    case '(':
-    case ')':
-    case '-':
-    case '+':
-    case '=':
-    case '~':
-    case '|':
-    case '<':
-    case '>':
-    case '?':
-    case ':':
-    case '/':
-    case ';':
-    case ',':
-    case '.':
-        out_begin = in_begin;
-        out_end = in_begin + 1;
-        return true;
+        paths.push_back(std::string(programFiles));
+    }
+    if (programFilesX86)
+    {
+        paths.push_back(std::string(programFilesX86));
     }
 
-    return false;
+    return paths;
 }
 
-TextEditor::LanguageDefinition createPromelaLanguage()
+std::string locateVSExecutable(std::string filename)
 {
-    TextEditor::LanguageDefinition promela;
-    promela.mName = "Promela";
-    promela.mKeywords = {
-        "active", "assert",   "atomic", "bool",   "break", "byte",   "case",    "chan",   "d_step",   "do",    "else",
-        "else",   "eval",     "false",  "fi",     "goto",  "hidden", "if",      "inline", "int",      "local", "mtype",
-        "od",     "proctype", "return", "select", "short", "skip",   "timeout", "true",   "unsigned", "xr",    "xs",
-    };
+    namespace fs = std::filesystem;
+    std::vector<std::string> programFilesPaths = getProgramFilesPaths();
+    std::string relativePath = "\\Microsoft Visual Studio\\";
 
-    promela.mTokenize = [](const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end,
-                           TextEditor::PaletteIndex &paletteIndex) -> bool {
-        paletteIndex = TextEditor::PaletteIndex::Max;
+    for (const auto &basePath : programFilesPaths)
+    {
+        std::string searchPath = basePath + relativePath;
 
-        while (in_begin < in_end && isascii(*in_begin) && isblank(*in_begin))
-            in_begin++;
-
-        if (in_begin == in_end)
+        try
         {
-            out_begin = in_end;
-            out_end = in_end;
-            paletteIndex = TextEditor::PaletteIndex::Default;
+            for (const auto &dirEntry : fs::recursive_directory_iterator(searchPath))
+            {
+                if (dirEntry.path().filename() == filename)
+                {
+                    return dirEntry.path().string();
+                }
+            }
         }
-        else if (TokenizeStyleString(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::String;
-        else if (TokenizeCharacterLiteral(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::CharLiteral;
-        else if (TokenizeIdentifier(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Identifier;
-        else if (TokenizeNumber(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Number;
-        else if (TokenizePunctuation(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Punctuation;
+        catch (const std::exception &)
+        {
+            // Skip directories that can't be accessed
+        }
+    }
 
-        return paletteIndex != TextEditor::PaletteIndex::Max;
-    };
-    promela.mCommentStart = "/*";
-    promela.mCommentEnd = "*/";
-    promela.mSingleLineComment = "//";
-    return promela;
+    return filename + " not found!";
 }
 
-void formatProgram(std::string &filecontent)
-{
-}
 
 int main()
 {
@@ -502,16 +441,48 @@ int main()
 
     // Reading Config
     {
-        std::ifstream file("config.json");
-        if (file)
+        try
         {
-            std::stringstream buffer;
-            buffer << file.rdbuf();
-            std::string config_content = buffer.str();
-            nlohmann::json j = nlohmann::json::parse(config_content);
-            config = j.template get<Config>();
+            std::ifstream file("config.json");
+            if (file)
+            {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                std::string config_content = buffer.str();
+                nlohmann::json j = nlohmann::json::parse(config_content);
+                config = j.template get<Config>();
+            }
+        }
+        catch (std::exception e)
+        {
+            spdlog::warn("Failed to load config.json");
         }
     }
+    config.tmppath = fs::temp_directory_path();
+    #ifdef PC
+    // FIXME Not working
+    if (config.compiler_path == "")
+    {
+        config.compiler_path = locateVSExecutable("cl.exe");
+        config.vcvarsall_path = locateVSExecutable("vcvarsall.bat");
+        spdlog::info("MSVC: {}", config.compiler_path);
+        spdlog::info("MSVC: {}", config.vcvarsall_path);
+        fs::path filepath("../example.pml");
+        fs::path spinexe("extra/spin.exe");
+        fs::path backup = fs::current_path();
+        fs::current_path(config.tmppath);
+        ipstream _stdout;
+        system(config.vcvarsall_path + " x64; .\\"+spinexe.string(), std_out > _stdout);
+        std::string line;
+
+        int i = 0;
+        while (_stdout && std::getline(_stdout, line) && !line.empty())
+        {
+            spdlog::info("{}", line);
+        }
+        fs::current_path(backup);
+    }
+    #endif
 
     // Main
     // spdlog::set_level(spdlog::level::debug);
@@ -536,7 +507,7 @@ int main()
     // Filepath variables
     std::string filepath = "example.pml";
     std::string filecontent;
-    bool fileOpened = true, fileSaved = false, fileFormat = false;
+    bool fileOpened = false, fileSaved = false, fileFormat = false;
     bool window_open = true;
     TextEditor edit;
 
@@ -548,11 +519,23 @@ int main()
     ImGui::SetNextWindowRefreshPolicy(ImGuiWindowRefreshFlags_TryToAvoidRefresh);
 
     double lastTimeSyntax = glfwGetTime();
+    int drawingFrameCounter = 0;
     bool syntaxChecked = false;
+
+    static char spin_path[256];
+    strncpy(spin_path, config.spin_path.c_str(), config.spin_path.size());
+    static char swarm_path[256];
+    strncpy(swarm_path, config.swarm_path.c_str(), config.swarm_path.size());
 
     while (!window.shouldClose())
     {
         window.pollEvents();
+        if (!ImGui::IsAnyMouseDown() && drawingFrameCounter > 5)
+        {
+            glfwWaitEventsTimeout(1);
+            drawingFrameCounter = 0;
+        }
+        drawingFrameCounter++;
         double time = glfwGetTime();
         // window.setClearColor(sin(time), -sin(time), 0, 1);
 
@@ -560,7 +543,7 @@ int main()
         io.FontGlobalScale = config.global_scale * ImGui::GetWindowDpiScale();
         if (!window.isFocused)
         {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
 
@@ -583,8 +566,9 @@ int main()
             }
         }
 
-        if (fileFormat)
+        if (fileFormat) // Maybe do not use this because it is weird
         {
+            // TODO: Patch Editor with pop_back();
             edit.SetText(spin::formatFile(edit.GetText()));
         }
 
@@ -630,7 +614,7 @@ int main()
             }
             if (ImGui::BeginTabItem("Simulate/Replay"))
             {
-                ImGui::Text("Simulate/Replay Content");
+                RenderSimulationView(edit);
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Verification"))
@@ -656,7 +640,7 @@ int main()
                     io.FontGlobalScale = config.global_scale * ImGui::GetWindowDpiScale();
                 }
 
-                ImGui::DragFloat("Scale", &config.syntaxCheckDelay, 0.1f, 0.1, 3.0, "%.2f",
+                ImGui::DragFloat("Syntax Check Delay", &config.syntaxCheckDelay, 0.1f, 0.1, 3.0, "%.2f",
                                  ImGuiSliderFlags_AlwaysClamp);
 
                 if (ImGui::Combo("Styles", &current_style, styles, IM_ARRAYSIZE(styles)))
@@ -673,6 +657,28 @@ int main()
                         ImGui::StyleColorsLight();
                         break;
                     }
+                }
+                // SPIN
+                if (ImGui::Button("Search Spin..."))
+                {
+                    fileDialogExe(config.spin_path);
+                    strncpy(spin_path, config.spin_path.c_str(), 256);
+                }
+                ImGui::SameLine();
+                if (ImGui::InputText("Spin Path:", spin_path, 256))
+                {
+                    config.spin_path = spin_path;
+                }
+                // SWARM
+                if (ImGui::Button("Search Swarm..."))
+                {
+                    fileDialogExe(config.swarm_path);
+                    strncpy(swarm_path, config.swarm_path.c_str(), 256);
+                }
+                ImGui::SameLine();
+                if (ImGui::InputText("Swarm Path:", swarm_path, 256))
+                {
+                    config.swarm_path = swarm_path;
                 }
 
                 ImGui::EndTabItem();
