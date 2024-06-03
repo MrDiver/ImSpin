@@ -89,6 +89,46 @@ TextEditor::ErrorMarkers generateErrorMarkers(std::string code)
     return markers;
 }
 
+void generateSymbolTable(fs::path filepath)
+{
+    spdlog::info("Current Path {}", fs::current_path().string());
+    ipstream _stdout;
+    child c(config.spin_path, "-d", filepath.string(), std_out > _stdout);
+    std::string line;
+    while (_stdout && std::getline(_stdout, line) && !line.empty())
+    {
+        spdlog::info("{}");
+    }
+}
+
+void runProgram()
+{
+#ifdef PC
+    // FIXME Not working
+    if (config.compiler_path == "")
+    {
+        config.compiler_path = locateVSExecutable("cl.exe");
+        config.vcvarsall_path = locateVSExecutable("vcvarsall.bat");
+        spdlog::info("MSVC: {}", config.compiler_path);
+        spdlog::info("MSVC: {}", config.vcvarsall_path);
+        fs::path filepath("../example.pml");
+        fs::path spinexe("extra/spin.exe");
+        fs::path backup = fs::current_path();
+        fs::current_path(config.tmppath);
+        ipstream _stdout;
+        system(config.vcvarsall_path + " x64; .\\" + spinexe.string(), std_out > _stdout);
+        std::string line;
+
+        int i = 0;
+        while (_stdout && std::getline(_stdout, line) && !line.empty())
+        {
+            spdlog::info("{}", line);
+        }
+        fs::current_path(backup);
+    }
+#endif
+}
+
 std::string formatFile(std::string code)
 {
     if (!fs::exists(config.spin_path))
@@ -124,7 +164,6 @@ std::string formatFile(std::string code)
     return std::string(buf.str());
 }
 } // namespace spin
-
 
 static bool TokenizeStyleString(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
 {

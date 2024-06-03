@@ -385,7 +385,6 @@ void RenderSimulationView(TextEditor &editor)
     ImGui::PopStyleVar(1);
 }
 
-
 std::vector<std::string> getProgramFilesPaths()
 {
     std::vector<std::string> paths;
@@ -433,7 +432,6 @@ std::string locateVSExecutable(std::string filename)
     return filename + " not found!";
 }
 
-
 int main()
 {
     using namespace boost::process;
@@ -459,30 +457,8 @@ int main()
         }
     }
     config.tmppath = fs::temp_directory_path();
-    #ifdef PC
-    // FIXME Not working
-    if (config.compiler_path == "")
-    {
-        config.compiler_path = locateVSExecutable("cl.exe");
-        config.vcvarsall_path = locateVSExecutable("vcvarsall.bat");
-        spdlog::info("MSVC: {}", config.compiler_path);
-        spdlog::info("MSVC: {}", config.vcvarsall_path);
-        fs::path filepath("../example.pml");
-        fs::path spinexe("extra/spin.exe");
-        fs::path backup = fs::current_path();
-        fs::current_path(config.tmppath);
-        ipstream _stdout;
-        system(config.vcvarsall_path + " x64; .\\"+spinexe.string(), std_out > _stdout);
-        std::string line;
-
-        int i = 0;
-        while (_stdout && std::getline(_stdout, line) && !line.empty())
-        {
-            spdlog::info("{}", line);
-        }
-        fs::current_path(backup);
-    }
-    #endif
+    config.spin_path = fs::absolute(config.spin_path);
+    config.swarm_path = fs::absolute(config.swarm_path);
 
     // Main
     // spdlog::set_level(spdlog::level::debug);
