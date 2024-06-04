@@ -94,8 +94,14 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # CONFIG EXECUTABLE
-set(SOURCE_FILES "src/editor.cpp" "src/ezgl.cpp" "src/main.cpp"
-                 "src/window.cpp" "src/config.cpp" "src/spinwrap.cpp")
+set(SOURCE_FILES
+    "src/editor.cpp"
+    "src/ezgl.cpp"
+    "src/main.cpp"
+    "src/window.cpp"
+    "src/spinwrap.cpp"
+    "src/spinlang.cpp"
+    "src/spingui.cpp")
 set(HEADER_FILES
     "include/colors.hpp"
     "include/editor.hpp"
@@ -103,7 +109,9 @@ set(HEADER_FILES
     "include/fonts.hpp"
     "include/window.hpp"
     "include/config.hpp"
-    "include/spinwrap.hpp")
+    "include/spinwrap.hpp"
+    "include/spinlang.hpp"
+    "include/spingui.hpp")
 
 if(NOT WIN32 OR MINGW)
   set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/dist)
@@ -148,26 +156,37 @@ target_link_libraries(${PROJECT_NAME} PUBLIC glm)
 # Configure IMGUI
 set(IMGUI_BACKEND "glfw")
 set(IMGUI_API "opengl3")
-file(GLOB IMGUI_SOURCES "${imgui_SOURCE_DIR}/*.cpp")
-file(GLOB IMGUI_HEADERS "${imgui_SOURCE_DIR}/*.h")
 
 add_library(
   imgui STATIC
-  ${IMGUI_SOURCES}
-  ${IMGUI_HEADERS}
+  "${imgui_SOURCE_DIR}/imgui.cpp"
+  "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+  "${imgui_SOURCE_DIR}/imgui_internal.h"
+  "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+  "${imgui_SOURCE_DIR}/imstb_textedit.h"
+  "${imgui_SOURCE_DIR}/imconfig.h"
+  "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+  "${imgui_SOURCE_DIR}/imgui.h"
+  "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+  "${imgui_SOURCE_DIR}/imstb_rectpack.h"
+  "${imgui_SOURCE_DIR}/imstb_truetype.h"
+  "${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.h"
+  "${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_BACKEND}.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_BACKEND}.h"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_API}.cpp"
   "${imgui_SOURCE_DIR}/backends/imgui_impl_${IMGUI_API}.h")
 
 target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}")
+target_include_directories(imgui PUBLIC "${imgui_SOURCE_DIR}/misc/cpp")
 add_executable(binary_to_comrpessed_c
                ${imgui_SOURCE_DIR}/misc/fonts/binary_to_compressed_c.cpp)
 
 # LINK LIBRARIES
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui spdlog nfd
                                              nlohmann_json::nlohmann_json)
-target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process Boost::xpressive glfw)
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process Boost::xpressive
+                                              glfw)
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 
 if(MINGW)
@@ -194,9 +213,9 @@ if(WIN32 AND NOT MINGW)
       "${swarm_BINARY_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>$<$<CONFIG:RelWithDebInfo>:Release>/swarm.exe"
       ${CMAKE_CURRENT_SOURCE_DIR}/extra/swarm.exe)
   add_compile_definitions(_WIN32_WINNT=0x0601)
-  
-    #target_compile_options(${PROJECT_NAME} PRIVATE /fsanitize=address /O)
-    #target_link_options(${PROJECT_NAME} PRIVATE /fsanitize=address)
+
+  # target_compile_options(${PROJECT_NAME} PRIVATE /fsanitize=address /O)
+  # target_link_options(${PROJECT_NAME} PRIVATE /fsanitize=address)
 endif()
 if(LINUX)
   add_custom_command(

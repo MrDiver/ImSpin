@@ -1,8 +1,10 @@
 #pragma once
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-#include <filesystem>
+
+namespace fs = std::filesystem;
 
 enum SimulationMode
 {
@@ -19,42 +21,36 @@ enum ChannelMode
 
 struct Config
 {
-    std::vector<std::string> recentFiles;
-    float global_scale = 0.3;
-    float syntaxCheckDelay = 0.5;
-    #ifdef PC
-    std::string spin_path = "extra/spin.exe";
-    std::string swarm_path = "extra/swarm.exe";
-    std::string vcvarsall_path = "";
-    #else
-    std::string spin_path = "extra/spin";
-    std::string swarm_path = "extra/swarm";
-    #endif
-    std::string dot_path = "dot";
-    std::string compiler_path = "";
-    // Simulation Settings
-    // # Mode
-    int seed = 123;
-    SimulationMode simulationMode = RANDOM;
-    char trailPath[256] = "";
-    int initialStepsSkipped = 0;
-    int maximumNumberOfSteps = 10000;
-    bool trackDataValues = false;
-    // # Channel
-    ChannelMode channelMode = BLOCKING;
-    bool MSCStmnt = false;
-    int MSCMaxTextWidth = 20;
-    int MSCUpdateDelay = 25;
-    // # Filter
-    char filterProcessIds[256] = "";
-    char filterQueueIds[256] = "";
-    char filterVarNames[256] = "";
-    char filterTrackedVariable[256] = "";
-    char filterTrackScaling[256] = "";
-    // Common
-    std::filesystem::path tmppath;
+    int theme              = 0;
+    float global_scale     = 0.2;
+    float syntaxCheckDelay = 0.3;
+    fs::path spin_path     = "extra/spin";
+    fs::path swarm_path    = "extra/swarm";
+    fs::path dot_path      = "extra/dot";
+    fs::path compiler_path = "gcc";
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, recentFiles, global_scale, syntaxCheckDelay, spin_path, swarm_path, dot_path, compiler_path);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Config, theme, global_scale, syntaxCheckDelay, spin_path, swarm_path, dot_path,
+                                   compiler_path);
 
-extern Config config;
+struct SimulationSettings
+{
+    // # Mode
+    bool trackDataValues          = false;
+    int seed                      = 123;
+    int initialStepsSkipped       = 0;
+    int maximumNumberOfSteps      = 10000;
+    SimulationMode simulationMode = RANDOM;
+    fs::path trailPath            = "";
+    // # Channel
+    bool MSCStmnt           = false;
+    int MSCMaxTextWidth     = 20;
+    int MSCUpdateDelay      = 25;
+    ChannelMode channelMode = BLOCKING;
+    // # Filter
+    std::string filterProcessIds      = "";
+    std::string filterQueueIds        = "";
+    std::string filterVarNames        = "";
+    std::string filterTrackedVariable = "";
+    std::string filterTrackScaling    = "";
+};

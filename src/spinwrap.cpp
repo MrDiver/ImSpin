@@ -1,64 +1,161 @@
 #include "spinwrap.hpp"
-#include "TextEditor.h"
-#include "config.hpp"
 #include <boost/process.hpp>
 #include <boost/xpressive/xpressive.hpp>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <spdlog/spdlog.h>
-#include <sstream>
 
-namespace spin
-{
-using namespace boost::process;
-using namespace boost::xpressive;
 namespace fs = std::filesystem;
-TextEditor::ErrorMarkers markers;
-sregex linenoRegex = sregex::compile("(\\d+)");
-smatch what;
-fs::path tmppath = fs::temp_directory_path();
-std::string tmpfilepath = (tmppath / "tmp.pml").string();
+namespace bp = boost::process;
+namespace xp = boost::xpressive;
 
-TextEditor::ErrorMarkers generateErrorMarkers(std::string code)
+TempDir::TempDir(fs::path path)
 {
+    this->previous = fs::absolute(fs::current_path());
+    fs::current_path(path);
+}
 
-    fs::path backup = fs::current_path();
-    fs::current_path(config.tmppath);
-    markers.clear();
-    if (!fs::exists(config.spin_path))
+TempDir::~TempDir()
+{
+    fs::current_path(previous);
+}
+
+SpinWrap::SpinWrap() : tmppath(fs::temp_directory_path())
+{
+}
+
+SpinWrap::~SpinWrap()
+{
+}
+
+void SpinWrap::readConfigFile()
+{
+    try
     {
-        spdlog::warn("Spin executable not found: {}", config.spin_path);
+        std::ifstream file("config.json");
+        if (file)
+        {
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            std::string config_content = buffer.str();
+            nlohmann::json j           = nlohmann::json::parse(config_content);
+            config                     = j.template get<Config>();
+        }
+    }
+    catch (std::exception e)
+    {
+        spdlog::warn("Failed to load config.json, most likely you updated ImSpin and the definition changed");
+    }
+}
+
+void SpinWrap::writeConfigFile()
+{
+    spdlog::info("Writing Config");
+    std::ofstream file("config.json");
+    nlohmann::json j = config;
+    if (file)
+    {
+        file << j;
+        file.close();
+    }
+    else
+    {
+        spdlog::warn("Failed to write config.json");
+    }
+}
+
+void SpinWrap::makePathsAbsolute()
+{
+    config.spin_path     = fs::absolute(config.spin_path);
+    config.compiler_path = fs::absolute(config.compiler_path);
+    config.swarm_path    = fs::absolute(config.swarm_path);
+    config.dot_path      = fs::absolute(config.dot_path);
+    settings.trailPath   = fs::absolute(settings.trailPath);
+}
+
+bool SpinWrap::isConfigValid()
+{
+    return true;
+}
+
+Config &SpinWrap::mutConfig()
+{
+    return this->config;
+}
+
+Config const &SpinWrap::getConfig()
+{
+    return this->config;
+}
+
+SimulationSettings &SpinWrap::mutSettings()
+{
+    return this->settings;
+}
+
+SimulationSettings const &SpinWrap::getSettings()
+{
+    return this->settings;
+}
+
+bool SpinWrap::readFile(fs::path path, std::string &filecontent)
+{
+    spdlog::debug("Trying to open file {}", path.string());
+    std::ifstream file(path);
+    if (!file)
+    {
+        spdlog::error("Couldn't open file {}", path.string());
+        return false;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    filecontent = buffer.str();
+
+    return true;
+}
+
+// Editor
+std::map<int, std::string> SpinWrap::generateErrorMarkers(std::string code)
+{
+    TempDir _(this->tmppath);
+    std::map<int, std::string> markers;
+    if (!this->isConfigValid())
+    {
+        spdlog::warn("No valid configuration found please check the settings tab");
         return markers;
     }
-    std::ofstream tmpfile(tmpfilepath);
+
+    static xp::sregex linenoRegex = xp::sregex::compile("(\\d+)");
+    static xp::smatch what;
+    std::ofstream tmpfile("tmp.pml");
     if (tmpfile)
     {
         tmpfile << code;
         tmpfile.close();
     }
 
-    ipstream pipe_stream;
-    child c(config.spin_path, "-a", tmpfilepath, std_out > pipe_stream);
+    bp::ipstream std_out;
+    bp::child c(config.spin_path.string(), "-a", "tmp.pml", bp::std_out > std_out);
 
     std::string line;
     int lastline = -1;
     std::string error_text;
 
-    while (pipe_stream && std::getline(pipe_stream, line) && !line.empty())
+    while (std_out && std::getline(std_out, line) && !line.empty())
     {
         int findError = line.find("Error:");
         if (findError == -1)
         {
-            break;
+            continue;
         }
         if (regex_search(line, what, linenoRegex))
         {
             if (what.size() <= 1 || line == "")
             {
-                break;
+                continue;
             }
-            int currentline = std::stoi(what[1].str());
+            int currentline          = std::stoi(what[1].str());
             std::string currentError = std::string(line.substr(findError));
             if (lastline != currentline)
             {
@@ -85,343 +182,45 @@ TextEditor::ErrorMarkers generateErrorMarkers(std::string code)
     // TODO: Parse warnings add them to TextEditor Repo and process preprocessor errors on stderr
     // TODO: Look into parsing messages from run and make config menu thing
 
-    fs::current_path(backup);
     return markers;
 }
 
-void generateSymbolTable(fs::path filepath)
-{
-    spdlog::info("Current Path {}", fs::current_path().string());
-    ipstream _stdout;
-    child c(config.spin_path, "-d", filepath.string(), std_out > _stdout);
-    std::string line;
-    while (_stdout && std::getline(_stdout, line) && !line.empty())
-    {
-        spdlog::info("{}");
-    }
-}
+// void generateSymbolTable(fs::path filepath)
+// {
+//     spdlog::info("Current Path {}", fs::current_path().string());
+//     ipstream _stdout;
+//     child c(config.spin_path, "-d", filepath.string(), std_out > _stdout);
+//     std::string line;
+//     while (_stdout && std::getline(_stdout, line) && !line.empty())
+//     {
+//         spdlog::info("{}");
+//     }
+// }
 
-void runProgram()
-{
-#ifdef PC
-    // FIXME Not working
-    if (config.compiler_path == "")
-    {
-        config.compiler_path = locateVSExecutable("cl.exe");
-        config.vcvarsall_path = locateVSExecutable("vcvarsall.bat");
-        spdlog::info("MSVC: {}", config.compiler_path);
-        spdlog::info("MSVC: {}", config.vcvarsall_path);
-        fs::path filepath("../example.pml");
-        fs::path spinexe("extra/spin.exe");
-        fs::path backup = fs::current_path();
-        fs::current_path(config.tmppath);
-        ipstream _stdout;
-        system(config.vcvarsall_path + " x64; .\\" + spinexe.string(), std_out > _stdout);
-        std::string line;
-
-        int i = 0;
-        while (_stdout && std::getline(_stdout, line) && !line.empty())
-        {
-            spdlog::info("{}", line);
-        }
-        fs::current_path(backup);
-    }
-#endif
-}
-
-std::string formatFile(std::string code)
-{
-    if (!fs::exists(config.spin_path))
-    {
-        spdlog::warn("Spin executable not found: {}", config.spin_path);
-        return code;
-    }
-    ipstream _stdout;
-    opstream _stdin;
-    child c(config.spin_path, "-pp", std_out > _stdout, std_in < _stdin);
-    if (!c.running())
-    {
-        spdlog::warn("Spin died before format could take place");
-    }
-    std::string line;
-    _stdin << code;
-    _stdin.pipe().close();
-
-    std::stringstream buf;
-    int i = 0;
-    while (_stdout && std::getline(_stdout, line) && !line.empty())
-    {
-        spdlog::info("Format: {}", line);
-        buf << line;
-        i++;
-    }
-    c.wait();
-    if (i == 0)
-    {
-        spdlog::info("No code to format");
-        return code;
-    }
-    return std::string(buf.str());
-}
-} // namespace spin
-
-static bool TokenizeStyleString(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    const char *p = in_begin;
-
-    if (*p == '"')
-    {
-        p++;
-
-        while (p < in_end)
-        {
-            // handle end of string
-            if (*p == '"')
-            {
-                out_begin = in_begin;
-                out_end = p + 1;
-                return true;
-            }
-
-            // handle escape character for "
-            if (*p == '\\' && p + 1 < in_end && p[1] == '"')
-                p++;
-
-            p++;
-        }
-    }
-
-    return false;
-}
-
-static bool TokenizeCharacterLiteral(const char *in_begin, const char *in_end, const char *&out_begin,
-                                     const char *&out_end)
-{
-    const char *p = in_begin;
-
-    if (*p == '\'')
-    {
-        p++;
-
-        // handle escape characters
-        if (p < in_end && *p == '\\')
-            p++;
-
-        if (p < in_end)
-            p++;
-
-        // handle end of character literal
-        if (p < in_end && *p == '\'')
-        {
-            out_begin = in_begin;
-            out_end = p + 1;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool TokenizeIdentifier(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    const char *p = in_begin;
-
-    if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')
-    {
-        p++;
-
-        while ((p < in_end) &&
-               ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_'))
-            p++;
-
-        out_begin = in_begin;
-        out_end = p;
-        return true;
-    }
-
-    return false;
-}
-
-static bool TokenizeNumber(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    const char *p = in_begin;
-
-    const bool startsWithNumber = *p >= '0' && *p <= '9';
-
-    if (*p != '+' && *p != '-' && !startsWithNumber)
-        return false;
-
-    p++;
-
-    bool hasNumber = startsWithNumber;
-
-    while (p < in_end && (*p >= '0' && *p <= '9'))
-    {
-        hasNumber = true;
-
-        p++;
-    }
-
-    if (hasNumber == false)
-        return false;
-
-    bool isFloat = false;
-    bool isHex = false;
-    bool isBinary = false;
-
-    if (p < in_end)
-    {
-        if (*p == '.')
-        {
-            isFloat = true;
-
-            p++;
-
-            while (p < in_end && (*p >= '0' && *p <= '9'))
-                p++;
-        }
-        else if (*p == 'x' || *p == 'X')
-        {
-            // hex formatted integer of the type 0xef80
-
-            isHex = true;
-
-            p++;
-
-            while (p < in_end && ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))
-                p++;
-        }
-        else if (*p == 'b' || *p == 'B')
-        {
-            // binary formatted integer of the type 0b01011101
-
-            isBinary = true;
-
-            p++;
-
-            while (p < in_end && (*p >= '0' && *p <= '1'))
-                p++;
-        }
-    }
-
-    if (isHex == false && isBinary == false)
-    {
-        // floating point exponent
-        if (p < in_end && (*p == 'e' || *p == 'E'))
-        {
-            isFloat = true;
-
-            p++;
-
-            if (p < in_end && (*p == '+' || *p == '-'))
-                p++;
-
-            bool hasDigits = false;
-
-            while (p < in_end && (*p >= '0' && *p <= '9'))
-            {
-                hasDigits = true;
-
-                p++;
-            }
-
-            if (hasDigits == false)
-                return false;
-        }
-
-        // single precision floating point type
-        if (p < in_end && *p == 'f')
-            p++;
-    }
-
-    if (isFloat == false)
-    {
-        // integer size type
-        while (p < in_end && (*p == 'u' || *p == 'U' || *p == 'l' || *p == 'L'))
-            p++;
-    }
-
-    out_begin = in_begin;
-    out_end = p;
-    return true;
-}
-
-static bool TokenizePunctuation(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end)
-{
-    (void)in_end;
-
-    switch (*in_begin)
-    {
-    case '[':
-    case ']':
-    case '{':
-    case '}':
-    case '!':
-    case '%':
-    case '^':
-    case '&':
-    case '*':
-    case '(':
-    case ')':
-    case '-':
-    case '+':
-    case '=':
-    case '~':
-    case '|':
-    case '<':
-    case '>':
-    case '?':
-    case ':':
-    case '/':
-    case ';':
-    case ',':
-    case '.':
-        out_begin = in_begin;
-        out_end = in_begin + 1;
-        return true;
-    }
-
-    return false;
-}
-
-TextEditor::LanguageDefinition createPromelaLanguage()
-{
-    TextEditor::LanguageDefinition promela;
-    promela.mName = "Promela";
-    promela.mKeywords = {
-        "active", "assert",   "atomic", "bool",   "break", "byte",   "case",    "chan",   "d_step",   "do",    "else",
-        "else",   "eval",     "false",  "fi",     "goto",  "hidden", "if",      "inline", "int",      "local", "mtype",
-        "od",     "proctype", "return", "select", "short", "skip",   "timeout", "true",   "unsigned", "xr",    "xs",
-    };
-
-    promela.mTokenize = [](const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end,
-                           TextEditor::PaletteIndex &paletteIndex) -> bool {
-        paletteIndex = TextEditor::PaletteIndex::Max;
-
-        while (in_begin < in_end && isascii(*in_begin) && isblank(*in_begin))
-            in_begin++;
-
-        if (in_begin == in_end)
-        {
-            out_begin = in_end;
-            out_end = in_end;
-            paletteIndex = TextEditor::PaletteIndex::Default;
-        }
-        else if (TokenizeStyleString(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::String;
-        else if (TokenizeCharacterLiteral(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::CharLiteral;
-        else if (TokenizeIdentifier(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Identifier;
-        else if (TokenizeNumber(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Number;
-        else if (TokenizePunctuation(in_begin, in_end, out_begin, out_end))
-            paletteIndex = TextEditor::PaletteIndex::Punctuation;
-
-        return paletteIndex != TextEditor::PaletteIndex::Max;
-    };
-    promela.mCommentStart = "/*";
-    promela.mCommentEnd = "*/";
-    promela.mSingleLineComment = "//";
-    return promela;
-}
+// void runProgram()
+// {
+// #ifdef PC
+//     // FIXME Not working
+//     if (config.compiler_path == "")
+//     {
+//         config.compiler_path  = locateVSExecutable("cl.exe");
+//         config.vcvarsall_path = locateVSExecutable("vcvarsall.bat");
+//         spdlog::info("MSVC: {}", config.compiler_path);
+//         spdlog::info("MSVC: {}", config.vcvarsall_path);
+//         fs::path filepath("../example.pml");
+//         fs::path spinexe("extra/spin.exe");
+//         fs::path backup = fs::current_path();
+//         fs::current_path(config.tmppath);
+//         ipstream _stdout;
+//         system(config.vcvarsall_path + " x64; .\\" + spinexe.string(), std_out > _stdout);
+//         std::string line;
+//
+//         int i = 0;
+//         while (_stdout && std::getline(_stdout, line) && !line.empty())
+//         {
+//             spdlog::info("{}", line);
+//         }
+//         fs::current_path(backup);
+//     }
+// #endif
+// }
