@@ -12,7 +12,7 @@ include(FetchContent)
 FetchContent_Declare(
   imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.90.6-docking)
+  GIT_TAG v1.90.8-docking)
 
 FetchContent_Declare(
   spdlog
@@ -186,7 +186,7 @@ add_executable(binary_to_comrpessed_c
 target_link_libraries(${PROJECT_NAME} PUBLIC imgui spdlog nfd
                                              nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PRIVATE Boost::process Boost::xpressive
-                                              glfw)
+                                              Boost::circular_buffer glfw)
 target_include_directories(${PROJECT_NAME} PUBLIC "external/imgui")
 
 if(MINGW)
@@ -237,9 +237,9 @@ if(LINUX)
   if(${CMAKE_BUILD_TYPE} MATCHES "Release")
     target_compile_options(${PROJECT_NAME} PRIVATE -O2)
   else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address -O)
-    target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE _FORTIFY_SOURCE)
+    # target_compile_options(${PROJECT_NAME} PRIVATE -fsanitize=address -O)
+    # target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
+    # target_compile_definitions(${PROJECT_NAME} PRIVATE _FORTIFY_SOURCE)
   endif()
 endif()
 

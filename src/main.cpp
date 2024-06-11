@@ -107,27 +107,21 @@ int main()
         window.pollEvents();
         spin.ProcessUpdates();
 
-        // if (!ImGui::IsAnyMouseDown() && drawingFrameCounter > 5)
-        // {
-        //     glfwWaitEventsTimeout(1);
-        //     drawingFrameCounter = 0;
-        // }
-        // drawingFrameCounter++;
-        // double time = glfwGetTime();
-        // // window.setClearColor(sin(time), -sin(time), 0, 1);
-        //
-        // // START RENDERING
-        // io.FontGlobalScale = config.global_scale * ImGui::GetWindowDpiScale();
-        // if (!window.isFocused)
-        // {
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        //     continue;
-        // }
-        //
-        // if (fileOpened)
-        // {
-        // }
-        //
+        if (!ImGui::IsAnyMouseDown() && drawingFrameCounter > 5)
+        {
+            glfwWaitEventsTimeout(1);
+            drawingFrameCounter = 0;
+        }
+        drawingFrameCounter++;
+        double time = glfwGetTime();
+        // window.setClearColor(sin(time), -sin(time), 0, 1);
+
+        // START RENDERING
+        if (!window.isFocused)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
 
         window.startDrawing();
         spin.Render();

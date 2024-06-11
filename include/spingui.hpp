@@ -21,13 +21,34 @@ template <typename Mutex> class ImGuiLogger : public spdlog::sinks::base_sink<Mu
     ImGuiLogger(uint32_t max_size = 100) : max_size(max_size), output(max_size)
     {
     }
+    void showIfExistsAndHighlight(std::string const &highlight, std::string const &text, ImVec4 color)
+    {
+        int idx = text.find(highlight);
+        if (idx == -1)
+            return;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        ImGui::Text(text.substr(0, idx).c_str());
+        ImGui::SameLine();
+        ImGui::TextColored(color, text.substr(idx, highlight.size()).c_str());
+        ImGui::SameLine();
+        ImGui::Text(text.substr(idx + highlight.size()).c_str());
+        ImGui::PopStyleVar(1);
+    }
     void Render()
     {
         for (std::string const &line : output)
         {
-            ImGui::Text(line.c_str());
+            showIfExistsAndHighlight("[info]", line, ImVec4(0.6, 1.0, 0.3, 1.0));
+            showIfExistsAndHighlight("[warning]", line, ImVec4(1.0, 0.9, 0.3, 1.0));
+            showIfExistsAndHighlight("[error]", line, ImVec4(1.0, 0.3, 0.3, 1.0));
+            showIfExistsAndHighlight("[debug]", line, ImVec4(0.3, 0.3, 1.0, 1.0));
         }
-        ImGui::SetScrollHereY(1.0f);
+        if (updated)
+        {
+            ImGui::SetScrollHereY(1.0f);
+            updated = false;
+        }
     }
 
   protected:
@@ -40,6 +61,7 @@ template <typename Mutex> class ImGuiLogger : public spdlog::sinks::base_sink<Mu
         {
             output.pop_front();
         }
+        updated = true;
     }
 
     void flush_() override
@@ -48,6 +70,7 @@ template <typename Mutex> class ImGuiLogger : public spdlog::sinks::base_sink<Mu
 
   private:
     boost::circular_buffer<std::string> output;
+    bool updated;
 };
 
 class SpinGui : public SpinWrap
@@ -78,7 +101,7 @@ class SpinGui : public SpinWrap
     void RenderSimulationView();
     // Utility
     bool FilePickerComponent(const char *label, const char *search_name, const char *filter, fs::path &path,
-                             bool force_path = true);
+                             bool show_relative = true);
     bool fileDialog(std::string &filepath, std::string const &title, std::string const &filter);
     // Style
     void BasicStyling();

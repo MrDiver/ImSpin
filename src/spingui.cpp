@@ -22,6 +22,7 @@ SpinGui::SpinGui()
     BasicStyling();
     RebuildFonts(100);
     readConfigFile();
+    isConfigValid();
 
     switch (getConfig().theme)
     {
@@ -61,7 +62,9 @@ void SpinGui::ProcessUpdates()
     {
         syntaxChecked = true;
 
-        edit.SetErrorMarkers(generateErrorMarkers(edit.GetText()));
+        writeToTempFile(edit.GetText());
+        edit.SetErrorMarkers(generateErrorMarkers());
+        generateSymbolTable();
     }
 }
 
@@ -366,10 +369,10 @@ void SpinGui::RenderSimulationView()
 }
 
 bool SpinGui::FilePickerComponent(const char *label, const char *search_name, const char *filter, fs::path &path,
-                                  bool force_path)
+                                  bool show_relative)
 {
     std::string s_path;
-    if (force_path)
+    if (show_relative)
     {
         s_path = fs::relative(path).string();
     }
@@ -385,6 +388,7 @@ bool SpinGui::FilePickerComponent(const char *label, const char *search_name, co
         {
             path   = fs::absolute(s_path);
             opened = true;
+            configModified();
         }
     }
     ImGui::SameLine();
@@ -392,6 +396,7 @@ bool SpinGui::FilePickerComponent(const char *label, const char *search_name, co
     {
         path   = s_path;
         opened = true;
+        configModified();
     }
     ImGui::PopID();
     return opened;
